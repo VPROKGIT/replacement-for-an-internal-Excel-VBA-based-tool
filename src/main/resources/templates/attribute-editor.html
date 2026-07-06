@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head(${'Attributes: ' + element.label})}"></head>
+<body>
+<header th:replace="~{fragments :: nav}"></header>
+<main class="container">
+    <p><a th:href="@{/ui/pages/{id}(id=${pageId})}">&larr; Back to page</a></p>
+    <h1 th:text="'Attributes: ' + ${element.label}">Attributes</h1>
+    <p class="muted" th:text="${element.elementType} + ' (' + ${element.code} + ')'">type (code)</p>
+
+    <div th:replace="~{fragments :: errorBanner}"></div>
+
+    <p th:if="${#lists.isEmpty(rows)}" class="empty">No attributes are applicable to this element type.</p>
+
+    <form th:if="${not #lists.isEmpty(rows)}" th:action="@{/ui/elements/{id}/attributes(id=${element.id})}" method="post" class="form">
+        <div class="form-row" th:each="row : ${rows}">
+            <label th:text="${row.name}">Attribute</label>
+
+            <select th:if="${row.boolean}" th:name="${row.code}">
+                <option value="" th:selected="${row.currentValue == ''}">(not set)</option>
+                <option value="true" th:selected="${row.currentValue == 'true'}">true</option>
+                <option value="false" th:selected="${row.currentValue == 'false'}">false</option>
+            </select>
+
+            <input th:if="${row.date}" type="date" th:name="${row.code}" th:value="${row.currentValue}"/>
+
+            <input th:if="${row.numeric}" type="text" th:name="${row.code}" th:value="${row.currentValue}"/>
+
+            <input th:unless="${row.boolean or row.date or row.numeric}" type="text"
+                   th:name="${row.code}" th:value="${row.currentValue}"/>
+        </div>
+        <button type="submit">Save attributes</button>
+    </form>
+</main>
+</body>
+</html>

@@ -12,6 +12,7 @@ target/
 
 # Local tooling
 .claude/settings.local.json
+.claude/launch.json
 
 # OS
 .DS_Store

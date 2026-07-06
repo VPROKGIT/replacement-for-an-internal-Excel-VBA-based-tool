@@ -1,6 +1,7 @@
 package com.vprok.forms.service;
 
 import com.vprok.forms.entity.Element;
+import com.vprok.forms.entity.ElementTypeRule;
 import com.vprok.forms.repository.ElementRepository;
 import com.vprok.forms.repository.ElementTypeRuleRepository;
 import com.vprok.forms.web.error.InvalidElementHierarchyException;
@@ -46,6 +47,13 @@ public class ElementService {
     public List<Element> getChildren(Long parentId) {
         getActiveOrThrow(parentId);
         return elementRepository.findByParentElementIdAndDeletedAtIsNullOrderByDisplayOrderAsc(parentId);
+    }
+
+    /** Data-driven from element_type_rule, so "add child" UI never hardcodes the allowed types. */
+    public List<String> getAllowedChildTypes(String parentType) {
+        return elementTypeRuleRepository.findByIdParentType(parentType).stream()
+                .map(ElementTypeRule::getChildType)
+                .toList();
     }
 
     @Transactional

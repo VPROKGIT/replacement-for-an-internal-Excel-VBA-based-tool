@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head(${'List options: ' + element.label})}"></head>
+<body>
+<header th:replace="~{fragments :: nav}"></header>
+<main class="container">
+    <p><a th:href="@{/ui/pages/{id}(id=${pageId})}">&larr; Back to page</a></p>
+    <h1 th:text="'List options: ' + ${element.label}">List options</h1>
+
+    <div th:replace="~{fragments :: errorBanner}"></div>
+
+    <table class="table" th:if="${not #lists.isEmpty(options)}">
+        <thead>
+        <tr>
+            <th>Code</th>
+            <th>Label</th>
+            <th>Active</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="option : ${options}">
+            <td th:text="${option.code}">code</td>
+            <td th:text="${option.label}">Label</td>
+            <td th:text="${option.active} ? 'yes' : 'no'">yes</td>
+            <td>
+                <form th:if="${option.active}"
+                      th:action="@{/ui/elements/{elementId}/list-options/{optionId}/deactivate(elementId=${element.id},optionId=${option.id})}"
+                      method="post" class="inline-form">
+                    <button type="submit">Deactivate</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <p th:if="${#lists.isEmpty(options)}" class="empty">No options yet.</p>
+
+    <p>
+        <a th:if="${not includeInactive}" th:href="@{/ui/elements/{id}/list-options(id=${element.id},includeInactive=true)}">Show inactive options</a>
+        <a th:if="${includeInactive}" th:href="@{/ui/elements/{id}/list-options(id=${element.id})}">Hide inactive options</a>
+    </p>
+
+    <section class="panel">
+        <h2>New option</h2>
+        <form th:action="@{/ui/elements/{id}/list-options(id=${element.id})}" method="post" class="form-inline">
+            <label>Code <input type="text" name="code" required="required"/></label>
+            <label>Label <input type="text" name="label" required="required"/></label>
+            <button type="submit">Add option</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>
