@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head(${page.label})}"></head>
+<body>
+<header th:replace="~{fragments :: nav}"></header>
+<main class="container">
+    <p><a th:href="@{/ui/pages}">&larr; All pages</a></p>
+    <h1 th:text="${page.label}">Page</h1>
+    <p class="muted" th:text="'code: ' + ${page.code}">code</p>
+
+    <div th:replace="~{fragments :: errorBanner}"></div>
+
+    <form th:if="${not #lists.isEmpty(tree.allowedChildTypes)}"
+          th:action="@{/ui/elements/{id}/children(id=${page.id})}" method="post" class="inline-form add-child-form">
+        <select name="elementType">
+            <option th:each="type : ${tree.allowedChildTypes}" th:value="${type}" th:text="${type}">TYPE</option>
+        </select>
+        <input type="text" name="code" placeholder="code" required="required"/>
+        <input type="text" name="label" placeholder="label" required="required"/>
+        <button type="submit">Add section</button>
+    </form>
+
+    <ul class="tree-children tree-root">
+        <li th:each="child : ${tree.children}" class="tree-node">
+            <div th:replace="~{tree-node :: node(${child})}"></div>
+        </li>
+    </ul>
+    <p th:if="${#lists.isEmpty(tree.children)}" class="empty">No sections yet &mdash; add one above.</p>
+</main>
+</body>
+</html>

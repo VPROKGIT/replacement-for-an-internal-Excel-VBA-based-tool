@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+    th:block (not <li>) so this fragment adds no wrapping element of its own: the caller's <li
+    th:each> already provides the <li>. th:replace/th:insert run before th:each on the SAME tag
+    (fragment inclusion has higher precedence than iteration), so the recursive call below puts
+    them on separate nested elements rather than combining both on one <li>.
+-->
+<th:block th:fragment="node(node)">
+    <div class="node-row">
+        <span class="node-type" th:text="${node.element.elementType}">TYPE</span>
+        <span class="node-label" th:text="${node.element.label}">Label</span>
+        <span class="node-code" th:text="'(' + ${node.element.code} + ')'">(code)</span>
+
+        <form th:action="@{/ui/elements/{id}/move-up(id=${node.element.id})}" method="post" class="inline-form">
+            <button type="submit" title="Move up">&uarr;</button>
+        </form>
+        <form th:action="@{/ui/elements/{id}/move-down(id=${node.element.id})}" method="post" class="inline-form">
+            <button type="submit" title="Move down">&darr;</button>
+        </form>
+
+        <form th:action="@{/ui/elements/{id}/edit(id=${node.element.id})}" method="post" class="inline-form">
+            <input type="text" name="label" th:value="${node.element.label}" size="18"/>
+            <button type="submit">Rename</button>
+        </form>
+
+        <a th:if="${#strings.startsWith(node.element.elementType, 'FIELD_')}"
+           th:href="@{/ui/elements/{id}/attributes(id=${node.element.id})}" class="button">Attributes</a>
+        <a th:if="${node.element.elementType == 'FIELD_LIST'}"
+           th:href="@{/ui/elements/{id}/list-options(id=${node.element.id})}" class="button">List options</a>
+
+        <form th:action="@{/ui/elements/{id}/delete(id=${node.element.id})}" method="post" class="inline-form"
+              onsubmit="return confirm('Delete this element and everything under it?');">
+            <button type="submit" class="button-danger">Delete</button>
+        </form>
+    </div>
+
+    <form th:if="${not #lists.isEmpty(node.allowedChildTypes)}"
+          th:action="@{/ui/elements/{id}/children(id=${node.element.id})}" method="post" class="inline-form add-child-form">
+        <select name="elementType">
+            <option th:each="type : ${node.allowedChildTypes}" th:value="${type}" th:text="${type}">TYPE</option>
+        </select>
+        <input type="text" name="code" placeholder="code" required="required"/>
+        <input type="text" name="label" placeholder="label" required="required"/>
+        <button type="submit">Add child</button>
+    </form>
+
+    <ul th:if="${not #lists.isEmpty(node.children)}" class="tree-children">
+        <li th:each="child : ${node.children}" class="tree-node">
+            <div th:replace="~{tree-node :: node(${child})}"></div>
+        </li>
+    </ul>
+</th:block>
+</body>
+</html>

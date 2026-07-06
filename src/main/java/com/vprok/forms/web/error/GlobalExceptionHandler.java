@@ -36,21 +36,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        String cause = ex.getMostSpecificCause().getMessage();
-        if (cause == null) {
-            return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Data integrity violation");
-        }
-        if (cause.contains("chk_element_type")) {
-            return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Unknown element_type");
-        }
-        if (cause.contains("chk_page_root")) {
-            return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
-                    "PAGE elements must have no parent/page; non-PAGE elements must have both");
-        }
-        if (cause.contains("uq_element_page_code") || cause.contains("uq_element_root_code")
-                || cause.contains("uq_eav_element_attr") || cause.contains("uq_list_option_code")) {
-            return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "A row with this code already exists");
-        }
-        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Data integrity violation");
+        DataIntegrityMessage info = DataIntegrityMessage.from(ex);
+        return ProblemDetail.forStatusAndDetail(info.status(), info.message());
     }
 }

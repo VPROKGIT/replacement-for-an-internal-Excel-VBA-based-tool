@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Pages')}"></head>
+<body>
+<header th:replace="~{fragments :: nav}"></header>
+<main class="container">
+    <h1>Pages</h1>
+    <div th:replace="~{fragments :: errorBanner}"></div>
+
+    <table class="table" th:if="${not #lists.isEmpty(pages)}">
+        <thead>
+        <tr>
+            <th>Code</th>
+            <th>Label</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="page : ${pages}">
+            <td th:text="${page.code}">code</td>
+            <td th:text="${page.label}">Label</td>
+            <td><a th:href="@{/ui/pages/{id}(id=${page.id})}" class="button">Open</a></td>
+        </tr>
+        </tbody>
+    </table>
+    <p th:if="${#lists.isEmpty(pages)}" class="empty">No pages yet &mdash; create one below.</p>
+
+    <section class="panel">
+        <h2>New page</h2>
+        <form th:action="@{/ui/pages}" method="post" class="form-inline">
+            <label>Code <input type="text" name="code" required="required"/></label>
+            <label>Label <input type="text" name="label" required="required"/></label>
+            <button type="submit">Create page</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

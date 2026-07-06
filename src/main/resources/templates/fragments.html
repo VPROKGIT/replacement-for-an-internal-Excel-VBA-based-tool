@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8"/>
+    <title th:text="${title}">Form Structure Builder</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<header th:fragment="nav" class="site-header">
+    <a th:href="@{/ui/pages}" class="brand">Form Structure Builder</a>
+</header>
+<div th:fragment="errorBanner" th:if="${error}" class="banner banner-error" th:text="${error}">Error</div>
+</body>
+</html>
