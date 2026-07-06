@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: form-structure-builder
+
+  datasource:
+    # Matches docker-compose.yml; override via SPRING_DATASOURCE_* env vars elsewhere.
+    url: jdbc:postgresql://localhost:5432/forms
+    username: forms
+    password: forms
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks entities against it.
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
