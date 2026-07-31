@@ -1,6 +1,7 @@
 package com.vprok.forms.repository;
 
 import com.vprok.forms.entity.ElementAttributeValue;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,6 +14,10 @@ public interface ElementAttributeValueRepository extends JpaRepository<ElementAt
     // off the result need it fetched eagerly here rather than lazily after the session is closed.
     @Query("select v from ElementAttributeValue v join fetch v.attributeDefinition where v.element.id = :elementId")
     List<ElementAttributeValue> findByElementId(@Param("elementId") Long elementId);
+
+    /** Bulk variant for whole-tree reads (JSON export), so walking a page costs one query, not one per element. */
+    @Query("select v from ElementAttributeValue v join fetch v.attributeDefinition where v.element.id in :elementIds")
+    List<ElementAttributeValue> findByElementIdIn(@Param("elementIds") Collection<Long> elementIds);
 
     Optional<ElementAttributeValue> findByElementIdAndAttributeDefinitionId(Long elementId, Long attributeDefinitionId);
 
