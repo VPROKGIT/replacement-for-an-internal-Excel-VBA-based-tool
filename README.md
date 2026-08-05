@@ -49,3 +49,5 @@ Docker, since they start a real PostgreSQL container.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming, merge, and commit-message conventions.
+
+Work is tracked in Jira under the `FORMS` project; commits reference their ticket by key.
