@@ -184,6 +184,28 @@ class FormExportIT {
     }
 
     @Test
+    void exportingAPageWithNoChildrenOmitsTheChildrenKeyEntirely() throws Exception {
+        Element page = elementService.create(null, "PAGE", "EXPORT_PAGE_EMPTY", "Empty Page", null);
+
+        // Per the "absent means empty" convention: no children array at all, not an empty one.
+        String expected = """
+                {
+                  "id": %d,
+                  "code": "EXPORT_PAGE_EMPTY",
+                  "label": "Empty Page",
+                  "type": "PAGE"
+                }
+                """
+                .formatted(page.getId());
+
+        String actual = mockMvc.perform(get("/api/export/pages/by-code/{code}", "EXPORT_PAGE_EMPTY"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JSONAssert.assertEquals(expected, actual, JSONCompareMode.STRICT);
+    }
+
+    @Test
     void unknownPageCodeReturns404() throws Exception {
         mockMvc.perform(get("/api/export/pages/by-code/{code}", "NO_SUCH_PAGE"))
                 .andExpect(status().isNotFound());
