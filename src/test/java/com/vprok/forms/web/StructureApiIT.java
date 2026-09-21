@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -223,5 +224,26 @@ class StructureApiIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ElementMoveRequest(fieldTextUnderB))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void moveRejectsDuplicateCodeCollisionAsACleanProblemDetailNotARaw500() throws Exception {
+        // ElementService.move() has no application-level uniqueness pre-check (see
+        // HierarchyInvariantsIT) - the partial unique index is the only thing that catches this.
+        // This test is specifically about what the API returns when it does: a clean
+        // application/problem+json error via GlobalExceptionHandler's DataIntegrityViolationException
+        // handler, not an unhandled 500.
+        Long pageA = createElement(null, "PAGE", "API_PAGE_10A", "API Page 10A");
+        Long pageB = createElement(null, "PAGE", "API_PAGE_10B", "API Page 10B");
+        Long sectionOnA = createElement(pageA, "SECTION", "DUPE_MOVE_HTTP", "On A");
+        createElement(pageB, "SECTION", "DUPE_MOVE_HTTP", "On B");
+
+        mockMvc.perform(patch("/api/elements/{id}/move", sectionOnA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ElementMoveRequest(pageB))))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail", containsString("already exists")));
     }
 }
