@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Templates')}"></head>
+<body>
+<header th:replace="~{fragments :: nav}"></header>
+<main class="container">
+    <h1>Templates</h1>
+    <p class="muted">
+        Template pages hold reusable MAPs. They are never listed as forms and never served by the export API.
+        To use one, open a real page and choose <strong>Use this MAP template</strong> on a section or subsection.
+        That makes a one-time, independent copy &mdash; later edits to the template never change pages it was copied into.
+    </p>
+    <div th:replace="~{fragments :: errorBanner}"></div>
+
+    <h2>Available MAP templates</h2>
+    <div th:each="tm : ${templateMaps}" class="panel template-map">
+        <div>
+            <span class="node-type">MAP</span>
+            <span class="node-label" th:text="${tm.label}">Label</span>
+            <span class="node-code" th:text="'(' + ${tm.code} + ')'">(code)</span>
+            <span class="muted">from
+                <a th:href="@{/ui/pages/{id}(id=${tm.templatePageId})}" th:text="${tm.templatePageLabel}">template page</a></span>
+        </div>
+        <ul th:if="${not #lists.isEmpty(tm.fields)}" class="template-fields">
+            <li th:each="field : ${tm.fields}">
+                <span class="node-type" th:text="${field.elementType}">TYPE</span>
+                <span th:text="${field.label}">Label</span>
+                <span class="node-code" th:text="'(' + ${field.code} + ')'">(code)</span>
+            </li>
+        </ul>
+        <p th:if="${#lists.isEmpty(tm.fields)}" class="empty">No fields in this MAP yet.</p>
+    </div>
+    <p th:if="${#lists.isEmpty(templateMaps)}" class="empty">
+        No MAP templates yet &mdash; open a template page below and add a MAP under one of its sections.
+    </p>
+
+    <h2>Template pages</h2>
+    <table class="table" th:if="${not #lists.isEmpty(templatePages)}">
+        <thead>
+        <tr>
+            <th>Code</th>
+            <th>Label</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="page : ${templatePages}">
+            <td th:text="${page.code}">code</td>
+            <td th:text="${page.label}">Label</td>
+            <td><a th:href="@{/ui/pages/{id}(id=${page.id})}" class="button">Open</a></td>
+        </tr>
+        </tbody>
+    </table>
+    <p th:if="${#lists.isEmpty(templatePages)}" class="empty">No template pages yet &mdash; create one below.</p>
+
+    <section class="panel">
+        <h2>New template page</h2>
+        <form th:action="@{/ui/templates}" method="post" class="form-inline">
+            <label>Code <input type="text" name="code" required="required"/></label>
+            <label>Label <input type="text" name="label" required="required"/></label>
+            <button type="submit">Create template page</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

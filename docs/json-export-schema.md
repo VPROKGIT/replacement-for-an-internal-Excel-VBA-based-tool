@@ -15,6 +15,12 @@ Both return `200` with the document below, or `404` (`application/problem+json`)
 non-deleted page exists. Requesting a non-`PAGE` element's id via `by-id` is also a `404` —
 export is always rooted at a whole page, never a fragment.
 
+**Template pages are never exported.** A page marked as a template (a store of reusable `MAP`s,
+not a form) returns `404` from both endpoints, exactly as if it did not exist. This is
+deliberate: a template must never be served as though it were a real form. `MAP`s copied *out of*
+a template into a real page are ordinary elements of that page and export normally — the copy has
+no link back to its template.
+
 Lookup by **code** is the intended integration path: `code` is the stable machine key. `by-id`
 exists for tooling and for links out of the editor UI.
 

@@ -40,8 +40,9 @@ public class ElementService {
                 .orElseThrow(() -> new ResourceNotFoundException("Element " + id + " not found"));
     }
 
+    /** Real form pages only; template pages are listed separately by MapTemplateService. */
     public List<Element> getPages() {
-        return elementRepository.findByPageIdIsNullAndDeletedAtIsNullOrderByCodeAsc();
+        return elementRepository.findByPageIdIsNullAndTemplateFalseAndDeletedAtIsNullOrderByCodeAsc();
     }
 
     public List<Element> getChildren(Long parentId) {

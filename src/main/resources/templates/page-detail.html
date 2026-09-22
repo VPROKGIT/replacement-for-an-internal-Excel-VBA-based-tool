@@ -4,11 +4,31 @@
 <body>
 <header th:replace="~{fragments :: nav}"></header>
 <main class="container">
-    <p><a th:href="@{/ui/pages}">&larr; All pages</a></p>
+    <p th:if="${pageIsTemplate}"><a th:href="@{/ui/templates}">&larr; All templates</a></p>
+    <p th:unless="${pageIsTemplate}"><a th:href="@{/ui/pages}">&larr; All pages</a></p>
     <h1 th:text="${page.label}">Page</h1>
     <p class="muted" th:text="'code: ' + ${page.code}">code</p>
 
+    <div th:if="${pageIsTemplate}" class="banner banner-template">
+        <strong>Template page.</strong> Not listed with forms and never returned by the export API.
+        Its MAPs are offered as reusable templates on every section and subsection of real pages.
+    </div>
+
     <div th:replace="~{fragments :: errorBanner}"></div>
+    <div th:replace="~{fragments :: noticeBanner}"></div>
+
+    <div class="page-actions">
+        <form th:if="${pageIsTemplate}" th:action="@{/ui/pages/{id}/template(id=${page.id})}" method="post" class="inline-form"
+              onsubmit="return confirm('Convert to a regular page? It will appear in the page list and be served by the export API.');">
+            <input type="hidden" name="template" value="false"/>
+            <button type="submit">Convert to regular page</button>
+        </form>
+        <form th:unless="${pageIsTemplate}" th:action="@{/ui/pages/{id}/template(id=${page.id})}" method="post" class="inline-form"
+              onsubmit="return confirm('Mark as a template? It will be removed from the page list and the export API will stop serving it.');">
+            <input type="hidden" name="template" value="true"/>
+            <button type="submit">Mark as template</button>
+        </form>
+    </div>
 
     <form th:if="${not #lists.isEmpty(tree.allowedChildTypes)}"
           th:action="@{/ui/elements/{id}/children(id=${page.id})}" method="post" class="inline-form add-child-form">

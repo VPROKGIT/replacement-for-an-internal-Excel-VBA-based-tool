@@ -8,6 +8,7 @@ import com.vprok.forms.entity.ElementListOption;
 import com.vprok.forms.service.ElementAttributeValueService;
 import com.vprok.forms.service.ElementListOptionService;
 import com.vprok.forms.service.ElementService;
+import com.vprok.forms.service.MapTemplateService;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
@@ -45,6 +46,9 @@ class FormExportIT {
 
     @Autowired
     private ElementListOptionService elementListOptionService;
+
+    @Autowired
+    private MapTemplateService mapTemplateService;
 
     @Test
     void exportsFullPageWithExactJsonShape() throws Exception {
@@ -295,6 +299,28 @@ class FormExportIT {
                 .andReturn().getResponse().getContentAsString();
 
         JSONAssert.assertEquals(expected, actual, JSONCompareMode.STRICT);
+    }
+
+    @Test
+    void templatePagesAreNeverServedByEitherExportEndpoint() throws Exception {
+        // Non-empty on purpose: a template with real content in it, not the empty-page path.
+        Element template = mapTemplateService.createTemplatePage("EXPORT_TPL", "Export Template");
+        Element section = elementService.create(template.getId(), "SECTION", "TPL_SEC", "Section", null);
+        Element map = elementService.create(section.getId(), "MAP", "TPL_MAP", "Map", null);
+        elementService.create(map.getId(), "FIELD_TEXT", "TPL_FIELD", "Field", null);
+
+        mockMvc.perform(get("/api/export/pages/by-code/{code}", "EXPORT_TPL"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/export/pages/by-id/{id}", template.getId()))
+                .andExpect(status().isNotFound());
+
+        // Unmarking it makes the same page exportable, so the 404s above are the template flag
+        // at work - not some other reason the page couldn't be found.
+        mapTemplateService.setTemplate(template.getId(), false);
+        mockMvc.perform(get("/api/export/pages/by-code/{code}", "EXPORT_TPL"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/export/pages/by-id/{id}", template.getId()))
+                .andExpect(status().isOk());
     }
 
     @Test
