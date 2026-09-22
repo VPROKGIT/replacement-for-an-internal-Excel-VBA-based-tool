@@ -8,7 +8,12 @@
 <body>
 <header th:fragment="nav" class="site-header">
     <a th:href="@{/ui/pages}" class="brand">Form Structure Builder</a>
+    <nav class="site-nav">
+        <a th:href="@{/ui/pages}">Pages</a>
+        <a th:href="@{/ui/templates}">Templates</a>
+    </nav>
 </header>
 <div th:fragment="errorBanner" th:if="${error}" class="banner banner-error" th:text="${error}">Error</div>
+<div th:fragment="noticeBanner" th:if="${notice}" class="banner banner-notice" th:text="${notice}">Notice</div>
 </body>
 </html>

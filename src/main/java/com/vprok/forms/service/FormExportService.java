@@ -48,9 +48,12 @@ public class FormExportService {
         this.elementAttributeValueRepository = elementAttributeValueRepository;
     }
 
+    // A template page is deliberately indistinguishable from a missing one here (404, not 403 or a
+    // flagged payload): it is not a form, and must never be served as though it were.
     @Transactional(readOnly = true)
     public ExportNode exportByCode(String pageCode) {
         Element page = elementRepository.findByElementTypeAndCodeAndDeletedAtIsNull(PAGE_TYPE, pageCode)
+                .filter(e -> !e.isTemplate())
                 .orElseThrow(() -> new ResourceNotFoundException("Page '" + pageCode + "' not found"));
         return export(page);
     }
@@ -58,7 +61,7 @@ public class FormExportService {
     @Transactional(readOnly = true)
     public ExportNode exportById(Long pageId) {
         Element page = elementRepository.findByIdAndDeletedAtIsNull(pageId)
-                .filter(e -> PAGE_TYPE.equals(e.getElementType()))
+                .filter(e -> PAGE_TYPE.equals(e.getElementType()) && !e.isTemplate())
                 .orElseThrow(() -> new ResourceNotFoundException("Page " + pageId + " not found"));
         return export(page);
     }

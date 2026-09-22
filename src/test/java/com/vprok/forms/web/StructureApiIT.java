@@ -2,6 +2,8 @@ package com.vprok.forms.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -12,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vprok.forms.service.MapTemplateService;
 import com.vprok.forms.web.dto.AttributeValueRequest;
 import com.vprok.forms.web.dto.AttributeValueResponse;
 import com.vprok.forms.web.dto.ElementCreateRequest;
@@ -54,6 +57,9 @@ class StructureApiIT {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private MapTemplateService mapTemplateService;
 
     private Long createElement(Long parentId, String elementType, String code, String label) throws Exception {
         ElementCreateRequest request = new ElementCreateRequest(parentId, elementType, code, label, null);
@@ -224,6 +230,17 @@ class StructureApiIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ElementMoveRequest(fieldTextUnderB))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void pageListingExcludesTemplatePages() throws Exception {
+        createElement(null, "PAGE", "API_PAGE_11_REAL", "Real page");
+        mapTemplateService.createTemplatePage("API_PAGE_11_TPL", "Template page");
+
+        mockMvc.perform(get("/api/pages"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].code", hasItem("API_PAGE_11_REAL")))
+                .andExpect(jsonPath("$[*].code", not(hasItem("API_PAGE_11_TPL"))));
     }
 
     @Test

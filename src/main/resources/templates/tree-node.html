@@ -46,6 +46,18 @@
         <button type="submit">Add child</button>
     </form>
 
+    <!-- templateMaps/pageIsTemplate come from the page's model, which fragments share. Offered only
+         on real pages, and only where a MAP may legally be added (so the hierarchy rules decide). -->
+    <form th:if="${not pageIsTemplate and node.allowedChildTypes.contains('MAP') and not #lists.isEmpty(templateMaps)}"
+          th:action="@{/ui/elements/{id}/clone-map(id=${node.element.id})}" method="post" class="inline-form clone-map-form">
+        <select name="sourceMapId">
+            <option th:each="tm : ${templateMaps}" th:value="${tm.id}"
+                    th:text="${tm.label} + ' (' + ${tm.code} + ') — from ' + ${tm.templatePageLabel}">map</option>
+        </select>
+        <button type="submit">Use this MAP template</button>
+        <span class="clone-note">One-time copy, not a live link: later edits to the template will not change this page.</span>
+    </form>
+
     <ul th:if="${not #lists.isEmpty(node.children)}" class="tree-children">
         <li th:each="child : ${node.children}" class="tree-node">
             <div th:replace="~{tree-node :: node(${child})}"></div>

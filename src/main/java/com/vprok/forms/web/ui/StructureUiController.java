@@ -7,6 +7,8 @@ import com.vprok.forms.service.AttributeDefinitionService;
 import com.vprok.forms.service.ElementAttributeValueService;
 import com.vprok.forms.service.ElementListOptionService;
 import com.vprok.forms.service.ElementService;
+import com.vprok.forms.service.MapCloneResult;
+import com.vprok.forms.service.MapTemplateService;
 import com.vprok.forms.web.dto.ElementResponse;
 import com.vprok.forms.web.dto.ListOptionResponse;
 import com.vprok.forms.web.error.DataIntegrityMessage;
@@ -40,16 +42,19 @@ public class StructureUiController {
     private final AttributeDefinitionService attributeDefinitionService;
     private final ElementAttributeValueService elementAttributeValueService;
     private final ElementListOptionService elementListOptionService;
+    private final MapTemplateService mapTemplateService;
 
     public StructureUiController(
             ElementService elementService,
             AttributeDefinitionService attributeDefinitionService,
             ElementAttributeValueService elementAttributeValueService,
-            ElementListOptionService elementListOptionService) {
+            ElementListOptionService elementListOptionService,
+            MapTemplateService mapTemplateService) {
         this.elementService = elementService;
         this.attributeDefinitionService = attributeDefinitionService;
         this.elementAttributeValueService = elementAttributeValueService;
         this.elementListOptionService = elementListOptionService;
+        this.mapTemplateService = mapTemplateService;
     }
 
     @GetMapping("/pages")
@@ -67,8 +72,37 @@ public class StructureUiController {
     public String pageDetail(@PathVariable Long id, Model model) {
         Element page = elementService.getActiveOrThrow(id);
         model.addAttribute("page", ElementResponse.from(page));
+        model.addAttribute("pageIsTemplate", page.isTemplate());
         model.addAttribute("tree", buildTree(page));
+        model.addAttribute("templateMaps", templateMapOptions());
         return "page-detail";
+    }
+
+    @PostMapping("/pages/{id}/template")
+    public String setTemplate(@PathVariable Long id, @RequestParam boolean template, RedirectAttributes redirectAttributes) {
+        return tryOrRedirect(redirectAttributes, "/ui/pages/" + id, () -> mapTemplateService.setTemplate(id, template));
+    }
+
+    @GetMapping("/templates")
+    public String listTemplates(Model model) {
+        model.addAttribute("templatePages", mapTemplateService.getTemplatePages().stream().map(ElementResponse::from).toList());
+        model.addAttribute("templateMaps", templateMapOptions());
+        return "templates";
+    }
+
+    @PostMapping("/templates")
+    public String createTemplatePage(@RequestParam String code, @RequestParam String label, RedirectAttributes redirectAttributes) {
+        return tryOrRedirect(redirectAttributes, "/ui/templates", () -> mapTemplateService.createTemplatePage(code, label));
+    }
+
+    @PostMapping("/elements/{parentId}/clone-map")
+    public String cloneMap(@PathVariable Long parentId, @RequestParam Long sourceMapId, RedirectAttributes redirectAttributes) {
+        Element parent = elementService.getActiveOrThrow(parentId);
+        String redirectUrl = "/ui/pages/" + resolvePageId(parent);
+        return tryOrRedirect(redirectAttributes, redirectUrl, () -> {
+            MapCloneResult result = mapTemplateService.cloneMapInto(sourceMapId, parentId);
+            redirectAttributes.addFlashAttribute("notice", cloneNotice(result));
+        });
     }
 
     @PostMapping("/elements/{parentId}/children")
@@ -93,7 +127,9 @@ public class StructureUiController {
     @PostMapping("/elements/{id}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         Element element = elementService.getActiveOrThrow(id);
-        String redirectUrl = "PAGE".equals(element.getElementType()) ? "/ui/pages" : "/ui/pages/" + resolvePageId(element);
+        String redirectUrl = !"PAGE".equals(element.getElementType()) ? "/ui/pages/" + resolvePageId(element)
+                : element.isTemplate() ? "/ui/templates"
+                : "/ui/pages";
         return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementService.softDelete(id));
     }
 
@@ -190,6 +226,28 @@ public class StructureUiController {
         List<ElementTreeNode> children = elementService.getChildren(element.getId()).stream().map(this::buildTree).toList();
         List<String> allowedChildTypes = elementService.getAllowedChildTypes(element.getElementType());
         return new ElementTreeNode(ElementResponse.from(element), children, allowedChildTypes);
+    }
+
+    private List<MapTemplateOption> templateMapOptions() {
+        return mapTemplateService.getTemplateMaps().stream()
+                .map(map -> new MapTemplateOption(
+                        map.getId(),
+                        map.getCode(),
+                        map.getLabel(),
+                        map.getPage().getId(),
+                        map.getPage().getLabel(),
+                        elementService.getChildren(map.getId()).stream().map(ElementResponse::from).toList()))
+                .toList();
+    }
+
+    private static String cloneNotice(MapCloneResult result) {
+        String notice = ("Copied the template MAP as %s. This is an independent one-time copy: "
+                + "later edits to the template will not change it.").formatted(result.clonedMap().getCode());
+        if (!result.renamedCodes().isEmpty()) {
+            notice += " Codes already used on this page were suffixed (" + String.join(", ", result.renamedCodes())
+                    + ") - rename them if needed.";
+        }
+        return notice;
     }
 
     private Long resolvePageId(Element element) {
