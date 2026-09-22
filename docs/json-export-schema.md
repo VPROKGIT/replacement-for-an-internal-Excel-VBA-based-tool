@@ -28,7 +28,7 @@ regardless of whether it is the page, a section, a subsection, or a field:
 | `id`         | number            | yes             | Database id. Informational — build against `code`, not this.        |
 | `code`       | string            | yes             | Stable machine key, unique within the page.                         |
 | `label`      | string            | yes             | Human-readable display name.                                        |
-| `type`       | string            | yes             | `PAGE`, `SECTION`, `SUBSECTION`, or one of the `FIELD_*` types.     |
+| `type`       | string            | yes             | `PAGE`, `SECTION`, `SUBSECTION`, `MAP`, or one of the `FIELD_*` types. |
 | `attributes` | object            | no              | Resolved attribute values, keyed by camelCase attribute code.       |
 | `options`    | array of objects  | no              | Selectable options. Only on `FIELD_LIST` elements.                  |
 | `children`   | array of nodes    | no              | Child elements, in display order.                                   |
@@ -46,7 +46,27 @@ recursive `children` array handles every current and future arrangement, and con
 render it with a single recursive function.
 
 Branch on `type` to decide how to render a node. Treat any `type` starting with `FIELD_` as a
-leaf input; `PAGE`, `SECTION`, and `SUBSECTION` are containers.
+leaf input; `PAGE`, `SECTION`, `SUBSECTION`, and `MAP` are containers.
+
+Note the rule is **not** "anything not starting with `FIELD_` is a container" by accident — it is
+that containers are an open set that can grow. Prefer branching on the container types you know
+and rendering an unrecognised node by recursing into its `children`, so a future container type
+degrades to "renders its contents" rather than disappearing.
+
+### `MAP`: a composite field
+
+A `MAP` groups a mix of ordinary fields under one heading — for example five text boxes, a list,
+and a text area that belong together. It is a **container, not an input**: it has no value of its
+own, and it carries its fields in the same `children` array every other container uses. Its
+children are ordinary `FIELD_*` nodes with their own `code`, `attributes`, and (for
+`FIELD_LIST`) `options`, exactly as they would be anywhere else.
+
+A `MAP` may appear wherever a field may appear — under a `SECTION` or a `SUBSECTION`. It cannot
+contain another `MAP`, a `SECTION`, or a `SUBSECTION`; only fields.
+
+There is no separate export path for maps: the node above is the whole contract. A consumer that
+already recurses through `children` and branches on `type` needs no new code beyond deciding how
+to lay a map's fields out visually.
 
 ## Conventions
 
@@ -159,6 +179,81 @@ Points worth noting in the example above, since they are easy to misread:
 
 This exact structure is asserted byte-for-byte (STRICT comparison) in `FormExportIT`, so this
 document and the implementation cannot drift apart silently.
+
+### Worked example: a section containing a `MAP`
+
+An ordinary field and a `MAP` sitting side by side under the same section — the map is a peer of
+the field, not a special case above it:
+
+```json
+{
+  "id": 1,
+  "code": "MAP_EXPORT_PAGE",
+  "label": "Map Export Page",
+  "type": "PAGE",
+  "children": [
+    {
+      "id": 2,
+      "code": "SEC_M",
+      "label": "Section With Map",
+      "type": "SECTION",
+      "children": [
+        {
+          "id": 3,
+          "code": "PLAIN_FIELD",
+          "label": "Plain Field",
+          "type": "FIELD_TEXT"
+        },
+        {
+          "id": 4,
+          "code": "ADDRESS_MAP",
+          "label": "Address",
+          "type": "MAP",
+          "children": [
+            {
+              "id": 5,
+              "code": "STREET",
+              "label": "Street",
+              "type": "FIELD_TEXT",
+              "attributes": { "mandatory": true }
+            },
+            {
+              "id": 6,
+              "code": "COUNTRY",
+              "label": "Country",
+              "type": "FIELD_LIST",
+              "options": [
+                { "code": "BE", "label": "Belgium", "isDefault": true },
+                { "code": "NL", "label": "Netherlands", "isDefault": false }
+              ]
+            },
+            {
+              "id": 7,
+              "code": "NOTES",
+              "label": "Notes",
+              "type": "FIELD_TEXTAREA",
+              "attributes": { "maxLength": 500 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Points worth noting:
+
+- `ADDRESS_MAP` uses the **same `children` array** a `SECTION` or `SUBSECTION` uses. There is no
+  map-specific key anywhere in the document.
+- `ADDRESS_MAP` has no `attributes` key: no attribute in the catalogue is currently applicable to
+  `MAP`, so it never carries any. That is a seed-data fact, not a shape difference — if an
+  attribute is later made applicable to `MAP`, it appears here like on any other node.
+- The map's children are unremarkable fields: `STREET` carries `mandatory`, `COUNTRY` carries
+  `options` because it is a `FIELD_LIST`, `NOTES` carries `maxLength`. Nothing about them changes
+  because their parent happens to be a map.
+
+This structure is likewise asserted byte-for-byte (STRICT) in `FormExportIT`.
 
 ## Versioning
 

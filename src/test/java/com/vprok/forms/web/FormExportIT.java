@@ -184,6 +184,98 @@ class FormExportIT {
     }
 
     @Test
+    void exportsAMapUsingTheSameRecursiveChildrenArrayAsAnyOtherContainer() throws Exception {
+        // A MAP and a plain field sitting side by side under one section: the map must be a peer
+        // of the field in the tree, and must carry its own fields in the ordinary "children"
+        // array - no map-specific key anywhere. Mirrors the worked example in
+        // docs/json-export-schema.md, asserted STRICT so the two can't drift.
+        Element page = elementService.create(null, "PAGE", "MAP_EXPORT_PAGE", "Map Export Page", null);
+        Element section = elementService.create(page.getId(), "SECTION", "SEC_M", "Section With Map", null);
+        Element plainField = elementService.create(section.getId(), "FIELD_TEXT", "PLAIN_FIELD", "Plain Field", null);
+        Element map = elementService.create(section.getId(), "MAP", "ADDRESS_MAP", "Address", null);
+
+        Element street = elementService.create(map.getId(), "FIELD_TEXT", "STREET", "Street", null);
+        Element country = elementService.create(map.getId(), "FIELD_LIST", "COUNTRY", "Country", null);
+        Element notes = elementService.create(map.getId(), "FIELD_TEXTAREA", "NOTES", "Notes", null);
+
+        elementAttributeValueService.setValue(street.getId(), "MANDATORY", "true");
+        elementAttributeValueService.setValue(notes.getId(), "MAX_LENGTH", "500");
+        elementListOptionService.create(country.getId(), "BE", "Belgium", null, true);
+        elementListOptionService.create(country.getId(), "NL", "Netherlands", null, false);
+
+        String expected = """
+                {
+                  "id": %d,
+                  "code": "MAP_EXPORT_PAGE",
+                  "label": "Map Export Page",
+                  "type": "PAGE",
+                  "children": [
+                    {
+                      "id": %d,
+                      "code": "SEC_M",
+                      "label": "Section With Map",
+                      "type": "SECTION",
+                      "children": [
+                        {
+                          "id": %d,
+                          "code": "PLAIN_FIELD",
+                          "label": "Plain Field",
+                          "type": "FIELD_TEXT"
+                        },
+                        {
+                          "id": %d,
+                          "code": "ADDRESS_MAP",
+                          "label": "Address",
+                          "type": "MAP",
+                          "children": [
+                            {
+                              "id": %d,
+                              "code": "STREET",
+                              "label": "Street",
+                              "type": "FIELD_TEXT",
+                              "attributes": { "mandatory": true }
+                            },
+                            {
+                              "id": %d,
+                              "code": "COUNTRY",
+                              "label": "Country",
+                              "type": "FIELD_LIST",
+                              "options": [
+                                { "code": "BE", "label": "Belgium", "isDefault": true },
+                                { "code": "NL", "label": "Netherlands", "isDefault": false }
+                              ]
+                            },
+                            {
+                              "id": %d,
+                              "code": "NOTES",
+                              "label": "Notes",
+                              "type": "FIELD_TEXTAREA",
+                              "attributes": { "maxLength": 500 }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """
+                .formatted(
+                        page.getId(),
+                        section.getId(),
+                        plainField.getId(),
+                        map.getId(),
+                        street.getId(),
+                        country.getId(),
+                        notes.getId());
+
+        String actual = mockMvc.perform(get("/api/export/pages/by-code/{code}", "MAP_EXPORT_PAGE"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JSONAssert.assertEquals(expected, actual, JSONCompareMode.STRICT);
+    }
+
+    @Test
     void exportingAPageWithNoChildrenOmitsTheChildrenKeyEntirely() throws Exception {
         Element page = elementService.create(null, "PAGE", "EXPORT_PAGE_EMPTY", "Empty Page", null);
 

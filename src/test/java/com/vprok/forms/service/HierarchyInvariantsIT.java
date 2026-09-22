@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.vprok.forms.entity.Element;
 import com.vprok.forms.repository.ElementRepository;
 import com.vprok.forms.repository.ElementTypeRuleRepository;
+import com.vprok.forms.web.error.InvalidElementHierarchyException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -131,17 +132,86 @@ class HierarchyInvariantsIT {
         assertThat(elementRepository.findById(page.getId()).orElseThrow().getDeletedAt()).isNull();
     }
 
+    // --- MAP composite field type (FORMS-13) --------------------------------------------------
+
+    @Test
+    void aMapAcceptsAnyMixOfOrdinaryFieldChildrenButNoContainers() {
+        Element page = elementService.create(null, "PAGE", "MAP_MIX_PAGE", "Map Mix Page", null);
+        Element section = elementService.create(page.getId(), "SECTION", "MIX_SEC", "Section", null);
+        Element map = elementService.create(section.getId(), "MAP", "MIX_MAP", "Address Map", null);
+
+        // The "5 text boxes, 1 list, 1 text area" case: any mix, any number, any field subtype.
+        elementService.create(map.getId(), "FIELD_TEXT", "MIX_T1", "Text 1", null);
+        elementService.create(map.getId(), "FIELD_TEXT", "MIX_T2", "Text 2", null);
+        elementService.create(map.getId(), "FIELD_TEXTAREA", "MIX_TA", "Text Area", null);
+        elementService.create(map.getId(), "FIELD_NUMBER", "MIX_NUM", "Number", null);
+        elementService.create(map.getId(), "FIELD_DATE", "MIX_DATE", "Date", null);
+        elementService.create(map.getId(), "FIELD_BOOLEAN", "MIX_BOOL", "Boolean", null);
+        elementService.create(map.getId(), "FIELD_LIST", "MIX_LIST", "List", null);
+
+        assertThat(elementService.getChildren(map.getId()))
+                .extracting(Element::getCode)
+                .containsExactly("MIX_T1", "MIX_T2", "MIX_TA", "MIX_NUM", "MIX_DATE", "MIX_BOOL", "MIX_LIST");
+
+        // A map holds fields only - no nested maps, no sections/subsections inside it.
+        assertThatThrownBy(() -> elementService.create(map.getId(), "MAP", "NESTED_MAP", "Nested", null))
+                .isInstanceOf(InvalidElementHierarchyException.class);
+        assertThatThrownBy(() -> elementService.create(map.getId(), "SUBSECTION", "BAD_SUB", "Bad", null))
+                .isInstanceOf(InvalidElementHierarchyException.class);
+    }
+
+    @Test
+    void aMapIsValidWhereverAnOrdinaryFieldIsValid() {
+        Element page = elementService.create(null, "PAGE", "MAP_PLACEMENT_PAGE", "Placement", null);
+        Element section = elementService.create(page.getId(), "SECTION", "PLACE_SEC", "Section", null);
+        Element subsection = elementService.create(section.getId(), "SUBSECTION", "PLACE_SUB", "Subsection", null);
+
+        // Under a section and under a subsection - the two places a FIELD_* may sit today.
+        assertThatCode(() -> {
+            elementService.create(section.getId(), "MAP", "MAP_IN_SEC", "Map in section", null);
+            elementService.create(subsection.getId(), "MAP", "MAP_IN_SUB", "Map in subsection", null);
+        }).doesNotThrowAnyException();
+
+        // ...and nowhere a field may not: directly under a PAGE.
+        assertThatThrownBy(() -> elementService.create(page.getId(), "MAP", "MAP_ON_PAGE", "Map on page", null))
+                .isInstanceOf(InvalidElementHierarchyException.class);
+    }
+
+    @Test
+    void softDeletingAMapCascadesThroughItsFieldChildren() {
+        Element page = elementService.create(null, "PAGE", "MAP_CASCADE_PAGE", "Cascade", null);
+        Element section = elementService.create(page.getId(), "SECTION", "MC_SEC", "Section", null);
+        Element map = elementService.create(section.getId(), "MAP", "MC_MAP", "Map", null);
+        Element fieldA = elementService.create(map.getId(), "FIELD_TEXT", "MC_F1", "Field 1", null);
+        Element fieldB = elementService.create(map.getId(), "FIELD_LIST", "MC_F2", "Field 2", null);
+        Element siblingField = elementService.create(section.getId(), "FIELD_TEXT", "MC_SIBLING", "Sibling", null);
+
+        elementService.softDelete(map.getId());
+
+        assertThat(elementRepository.findById(map.getId()).orElseThrow().getDeletedAt()).isNotNull();
+        assertThat(elementRepository.findById(fieldA.getId()).orElseThrow().getDeletedAt()).isNotNull();
+        assertThat(elementRepository.findById(fieldB.getId()).orElseThrow().getDeletedAt()).isNotNull();
+        // Everything outside the map's own subtree is untouched.
+        assertThat(elementRepository.findById(siblingField.getId()).orElseThrow().getDeletedAt()).isNull();
+        assertThat(elementRepository.findById(section.getId()).orElseThrow().getDeletedAt()).isNull();
+        assertThat(elementService.getChildren(section.getId()))
+                .extracting(Element::getCode)
+                .containsExactly("MC_SIBLING");
+    }
+
     // --- element_type_rule: exhaustive matrix -------------------------------------------------
 
     private static final List<String> ALL_ELEMENT_TYPES = List.of(
-            "PAGE", "SECTION", "SUBSECTION",
+            "PAGE", "SECTION", "SUBSECTION", "MAP",
             "FIELD_TEXT", "FIELD_TEXTAREA", "FIELD_NUMBER", "FIELD_DATE", "FIELD_BOOLEAN", "FIELD_LIST");
 
     /**
-     * Exactly the 14 pairs seeded in V2__seed_data.sql. If a future migration adds or removes a
-     * hierarchy rule, this set must be updated in the same change - deliberately coupled, the same
-     * way FormExportIT is deliberately coupled to docs/json-export-schema.md, so the two can't
-     * silently drift apart.
+     * Exactly the pairs seeded across V2__seed_data.sql (14) and V3__add_map_element_type.sql (8).
+     * If a future migration adds or removes a hierarchy rule, this set must be updated in the same
+     * change - deliberately coupled, the same way FormExportIT is deliberately coupled to
+     * docs/json-export-schema.md, so the two can't silently drift apart. (FORMS-13 is the first
+     * time that coupling actually fired: adding MAP broke this test until the rows were added
+     * here, which is the intended behaviour.)
      */
     private static final Set<String> VALID_PAIRS = Set.of(
             "PAGE->SECTION",
@@ -149,7 +219,12 @@ class HierarchyInvariantsIT {
             "SECTION->FIELD_TEXT", "SECTION->FIELD_TEXTAREA", "SECTION->FIELD_NUMBER",
             "SECTION->FIELD_DATE", "SECTION->FIELD_BOOLEAN", "SECTION->FIELD_LIST",
             "SUBSECTION->FIELD_TEXT", "SUBSECTION->FIELD_TEXTAREA", "SUBSECTION->FIELD_NUMBER",
-            "SUBSECTION->FIELD_DATE", "SUBSECTION->FIELD_BOOLEAN", "SUBSECTION->FIELD_LIST");
+            "SUBSECTION->FIELD_DATE", "SUBSECTION->FIELD_BOOLEAN", "SUBSECTION->FIELD_LIST",
+            // V3: a MAP sits where a field sits, and holds any mix of ordinary fields.
+            // Deliberately no PAGE->MAP and no MAP->MAP.
+            "SECTION->MAP", "SUBSECTION->MAP",
+            "MAP->FIELD_TEXT", "MAP->FIELD_TEXTAREA", "MAP->FIELD_NUMBER",
+            "MAP->FIELD_DATE", "MAP->FIELD_BOOLEAN", "MAP->FIELD_LIST");
 
     @Test
     void elementTypeRuleAcceptsExactlyTheSeededPairsAndRejectsEveryOtherCombination() {
