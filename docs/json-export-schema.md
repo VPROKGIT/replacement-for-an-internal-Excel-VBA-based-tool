@@ -261,6 +261,60 @@ Points worth noting:
 
 This structure is likewise asserted byte-for-byte (STRICT) in `FormExportIT`.
 
+### `FIELD_DOCUMENT`: a document slot
+
+A `FIELD_DOCUMENT` is a leaf field where the end user provides a document. The export describes the
+**slot only**: there is no file, URL or upload metadata in it, because file storage and upload
+handling are the frontend's responsibility, not this application's. It may appear wherever other
+fields may: under a `SECTION`, a `SUBSECTION`, or inside a `MAP`.
+
+Two attributes apply to it, and only to it:
+
+| Attribute key                 | Type    | Meaning                                                                 |
+|-------------------------------|---------|-------------------------------------------------------------------------|
+| `confidential`                | boolean | The document is confidential.                                           |
+| `nonConfidentialVersionCode`  | string  | The `code` of the field holding this document's non-confidential version. |
+
+The application guarantees one thing: if `confidential` is `true`, `nonConfidentialVersionCode` is
+present and non-blank. **It does not check what the code points to** (a deliberate v1 scope cut). The
+code may name nothing on the page, or name a field that is not a `FIELD_DOCUMENT`. Resolve it against
+the page's own codes and handle a missing or unexpected target gracefully.
+
+```json
+{
+  "id": 1,
+  "code": "DOC_EXPORT_PAGE",
+  "label": "Document Export Page",
+  "type": "PAGE",
+  "children": [
+    {
+      "id": 2,
+      "code": "DOC_SEC",
+      "label": "Supporting documents",
+      "type": "SECTION",
+      "children": [
+        {
+          "id": 3,
+          "code": "DOSSIER_FULL",
+          "label": "Full dossier",
+          "type": "FIELD_DOCUMENT",
+          "attributes": { "confidential": true, "nonConfidentialVersionCode": "DOSSIER_PUBLIC" }
+        },
+        {
+          "id": 4,
+          "code": "DOSSIER_PUBLIC",
+          "label": "Public dossier",
+          "type": "FIELD_DOCUMENT",
+          "attributes": { "confidential": false }
+        }
+      ]
+    }
+  ]
+}
+```
+
+This structure is likewise asserted byte-for-byte (STRICT) in `FormExportIT`.
+
 ## Versioning
 
 The document is deliberately unwrapped — the root *is* the page node, with no envelope. If a

@@ -103,6 +103,10 @@ h1 {
     flex-shrink: 0;
 }
 
+.form .form-row .attr-hint {
+    font-size: 0.8rem;
+}
+
 button,
 .button {
     display: inline-block;

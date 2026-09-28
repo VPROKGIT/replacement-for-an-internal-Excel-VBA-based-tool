@@ -28,6 +28,8 @@
 
             <input th:unless="${row.boolean or row.date or row.numeric}" type="text"
                    th:name="${row.code}" th:value="${row.currentValue}"/>
+
+            <span th:if="${row.description}" class="muted attr-hint" th:text="${row.description}">hint</span>
         </div>
         <button type="submit">Save attributes</button>
     </form>
