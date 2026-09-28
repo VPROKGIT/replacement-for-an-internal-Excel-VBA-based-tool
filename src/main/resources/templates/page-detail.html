@@ -3,49 +3,105 @@
 <head th:replace="~{fragments :: head(${page.label})}"></head>
 <body>
 <header th:replace="~{fragments :: nav}"></header>
-<main class="container">
-    <p th:if="${pageIsTemplate}"><a th:href="@{/ui/templates}">&larr; All templates</a></p>
-    <p th:unless="${pageIsTemplate}"><a th:href="@{/ui/pages}">&larr; All pages</a></p>
-    <h1 th:text="${page.label}">Page</h1>
-    <p class="muted" th:text="'code: ' + ${page.code}">code</p>
+<!--
+    Two-pane page editor (FORMS-17). Left: page switcher + this page's top-level sections. Right:
+    one of - the selected section's subtree (sectionTree), one element's detail (detail), or an
+    empty state. Every state has its own URL; there is no client-side state and no JavaScript.
+-->
+<main class="container container-wide">
+    <div class="editor">
+        <aside class="editor-nav">
+            <form th:action="@{/ui/pages/switch}" method="get" class="page-switcher">
+                <label for="page-switch">Page</label>
+                <select id="page-switch" name="id">
+                    <option th:each="p : ${switcherPages}" th:value="${p.id}" th:text="${p.label}"
+                            th:selected="${p.id == page.id}">Page</option>
+                </select>
+                <button type="submit">Open</button>
+            </form>
+            <p class="nav-back">
+                <a th:unless="${pageIsTemplate}" th:href="@{/ui/pages}">&larr; All pages</a>
+                <a th:if="${pageIsTemplate}" th:href="@{/ui/templates}">&larr; All templates</a>
+            </p>
 
-    <div th:if="${pageIsTemplate}" class="banner banner-template">
-        <strong>Template page.</strong> Not listed with forms and never returned by the export API.
-        Its MAPs are offered as reusable templates on every section and subsection of real pages.
+            <h2 class="nav-heading">Sections</h2>
+            <ul class="section-list" th:if="${not #lists.isEmpty(sections)}">
+                <li th:each="s : ${sections}" th:classappend="${s.id == selectedSectionId} ? 'selected'">
+                    <a th:href="@{/ui/pages/{p}/sections/{s}(p=${page.id},s=${s.id})}">
+                        <span th:text="${s.label}">Section</span>
+                        <span class="node-code" th:text="${s.code}">CODE</span>
+                    </a>
+                </li>
+            </ul>
+            <p th:if="${#lists.isEmpty(sections)}" class="empty">No sections yet.</p>
+
+            <form th:if="${not #lists.isEmpty(pageChildTypes)}"
+                  th:action="@{/ui/elements/{id}/children(id=${page.id})}" method="post" class="add-section-form">
+                <input type="hidden" name="from" th:if="${selectedSectionId}" th:value="${selectedSectionId}"/>
+                <select name="elementType">
+                    <option th:each="type : ${pageChildTypes}" th:value="${type}" th:text="${type}">TYPE</option>
+                </select>
+                <input type="text" name="code" placeholder="code" required="required"/>
+                <input type="text" name="label" placeholder="label" required="required"/>
+                <button type="submit">Add section</button>
+            </form>
+        </aside>
+
+        <section class="editor-main">
+            <h1 th:text="${page.label}">Page</h1>
+            <p class="muted" th:text="'code: ' + ${page.code}">code</p>
+
+            <div th:if="${pageIsTemplate}" class="banner banner-template">
+                <strong>Template page.</strong> Not listed with forms and never returned by the export API.
+                Its MAPs are offered as reusable templates on every section and subsection of real pages.
+            </div>
+
+            <div th:replace="~{fragments :: errorBanner}"></div>
+            <div th:replace="~{fragments :: noticeBanner}"></div>
+
+            <div class="page-actions">
+                <form th:if="${pageIsTemplate}" th:action="@{/ui/pages/{id}/template(id=${page.id})}" method="post" class="inline-form"
+                      onsubmit="return confirm('Convert to a regular page? It will appear in the page list and be served by the export API.');">
+                    <input type="hidden" name="template" value="false"/>
+                    <button type="submit">Convert to regular page</button>
+                </form>
+                <form th:unless="${pageIsTemplate}" th:action="@{/ui/pages/{id}/template(id=${page.id})}" method="post" class="inline-form"
+                      onsubmit="return confirm('Mark as a template? It will be removed from the page list and the export API will stop serving it.');">
+                    <input type="hidden" name="template" value="true"/>
+                    <button type="submit">Mark as template</button>
+                </form>
+            </div>
+
+            <!-- Selected section: its whole subtree, with every inline control. -->
+            <ul th:if="${sectionTree}" class="tree-children tree-root">
+                <li class="tree-node">
+                    <div th:replace="~{tree-node :: node(${sectionTree})}"></div>
+                </li>
+            </ul>
+
+            <!-- Detail of one element: its attributes, and list options where it has them. -->
+            <div th:if="${detail}" class="detail-pane">
+                <p><a th:href="@{/ui/pages/{p}/sections/{s}(p=${page.id},s=${selectedSectionId})}">&larr; Back to section</a></p>
+                <h2>
+                    <span class="node-type" th:text="${detail.elementType}">TYPE</span>
+                    <span th:text="${detail.label}">Label</span>
+                    <span class="node-code" th:text="'(' + ${detail.code} + ')'">(code)</span>
+                </h2>
+
+                <h3>Attributes</h3>
+                <div th:replace="~{attribute-editor :: form}"></div>
+
+                <th:block th:if="${hasListOptions}">
+                    <h3 id="list-options">List options</h3>
+                    <div th:replace="~{list-options :: panel}"></div>
+                </th:block>
+            </div>
+
+            <p th:if="${sectionTree == null and detail == null}" class="empty">
+                No sections yet &mdash; add one in the left pane.
+            </p>
+        </section>
     </div>
-
-    <div th:replace="~{fragments :: errorBanner}"></div>
-    <div th:replace="~{fragments :: noticeBanner}"></div>
-
-    <div class="page-actions">
-        <form th:if="${pageIsTemplate}" th:action="@{/ui/pages/{id}/template(id=${page.id})}" method="post" class="inline-form"
-              onsubmit="return confirm('Convert to a regular page? It will appear in the page list and be served by the export API.');">
-            <input type="hidden" name="template" value="false"/>
-            <button type="submit">Convert to regular page</button>
-        </form>
-        <form th:unless="${pageIsTemplate}" th:action="@{/ui/pages/{id}/template(id=${page.id})}" method="post" class="inline-form"
-              onsubmit="return confirm('Mark as a template? It will be removed from the page list and the export API will stop serving it.');">
-            <input type="hidden" name="template" value="true"/>
-            <button type="submit">Mark as template</button>
-        </form>
-    </div>
-
-    <form th:if="${not #lists.isEmpty(tree.allowedChildTypes)}"
-          th:action="@{/ui/elements/{id}/children(id=${page.id})}" method="post" class="inline-form add-child-form">
-        <select name="elementType">
-            <option th:each="type : ${tree.allowedChildTypes}" th:value="${type}" th:text="${type}">TYPE</option>
-        </select>
-        <input type="text" name="code" placeholder="code" required="required"/>
-        <input type="text" name="label" placeholder="label" required="required"/>
-        <button type="submit">Add section</button>
-    </form>
-
-    <ul class="tree-children tree-root">
-        <li th:each="child : ${tree.children}" class="tree-node">
-            <div th:replace="~{tree-node :: node(${child})}"></div>
-        </li>
-    </ul>
-    <p th:if="${#lists.isEmpty(tree.children)}" class="empty">No sections yet &mdash; add one above.</p>
 </main>
 </body>
 </html>

@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Controller;
@@ -32,12 +33,24 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
- * Server-rendered tree editor for backend developers building form structures. Calls the same
- * services as the REST API (FORMS-5) directly rather than looping back over HTTP.
+ * Server-rendered structure editor for backend developers. Calls the same services as the REST
+ * API (FORMS-5) directly rather than looping back over HTTP.
+ *
+ * <p>The page editor is two panes (FORMS-17): the left lists the page's top-level sections, the
+ * right shows one selected section's subtree, or one element's detail (attributes, list options).
+ * Everything shown is in the URL - {@code /ui/pages/{page}/sections/{section}[/elements/{element}]}
+ * - so refresh, back and bookmarks work. Nothing here is type-specific beyond PAGE: which children
+ * an element may have and which attributes it carries come from seed data, so a new container
+ * type needs no change here.
+ *
+ * <p>Every POST redirects straight to its final URL: flash attributes (error/notice banners)
+ * survive exactly one redirect, so a second hop would silently drop them.
  */
 @Controller
 @RequestMapping("/ui")
 public class StructureUiController {
+
+    private static final String PAGE_TYPE = "PAGE";
 
     private final ElementService elementService;
     private final AttributeDefinitionService attributeDefinitionService;
@@ -58,6 +71,8 @@ public class StructureUiController {
         this.mapTemplateService = mapTemplateService;
     }
 
+    // --- page list --------------------------------------------------------------------------
+
     @GetMapping("/pages")
     public String listPages(Model model) {
         model.addAttribute("pages", elementService.getPages().stream().map(ElementResponse::from).toList());
@@ -66,22 +81,96 @@ public class StructureUiController {
 
     @PostMapping("/pages")
     public String createPage(@RequestParam String code, @RequestParam String label, RedirectAttributes redirectAttributes) {
-        return tryOrRedirect(redirectAttributes, "/ui/pages", () -> elementService.create(null, "PAGE", code, label, null));
+        return tryOrRedirect(redirectAttributes, "/ui/pages", () -> elementService.create(null, PAGE_TYPE, code, label, null));
     }
 
+    /** Target of the left pane's page switcher (a plain GET form, no JavaScript). */
+    @GetMapping("/pages/switch")
+    public String switchPage(@RequestParam(required = false) Long id) {
+        return "redirect:" + (id == null ? "/ui/pages" : "/ui/pages/" + id);
+    }
+
+    // --- page editor views ------------------------------------------------------------------
+
+    /** A page with no section in the URL: show its first section, so the URL says what is shown. */
     @GetMapping("/pages/{id}")
-    public String pageDetail(@PathVariable Long id, Model model) {
+    public String pageEditor(@PathVariable Long id, Model model) {
         Element page = elementService.getActiveOrThrow(id);
-        model.addAttribute("page", ElementResponse.from(page));
-        model.addAttribute("pageIsTemplate", page.isTemplate());
-        model.addAttribute("tree", buildTree(page));
+        if (!PAGE_TYPE.equals(page.getElementType())) {
+            return "redirect:" + sectionViewUrl(page);
+        }
+        String firstSectionUrl = pageViewUrl(id);
+        if (!firstSectionUrl.equals("/ui/pages/" + id)) {
+            return "redirect:" + firstSectionUrl;
+        }
+        populateEditorFrame(model, page, null);
+        return "page-detail";
+    }
+
+    @GetMapping("/pages/{pageId}/sections/{sectionId}")
+    public String sectionView(@PathVariable Long pageId, @PathVariable Long sectionId, Model model) {
+        Element section = elementService.getActiveOrThrow(sectionId);
+        if (PAGE_TYPE.equals(section.getElementType())) {
+            return "redirect:" + pageViewUrl(sectionId);
+        }
+        // Anything but "this page's own top-level section" is sent to the URL that really shows it.
+        String canonical = sectionViewUrl(section);
+        if (!canonical.equals(sectionUrl(pageId, sectionId))) {
+            return "redirect:" + canonical;
+        }
+        populateEditorFrame(model, elementService.getActiveOrThrow(pageId), sectionId);
+        model.addAttribute("sectionTree", buildTree(section));
         model.addAttribute("templateMaps", templateMapOptions());
         return "page-detail";
     }
 
+    /** The right pane's detail view: any element's attributes, plus list options where it has them. */
+    @GetMapping("/pages/{pageId}/sections/{sectionId}/elements/{elementId}")
+    public String elementDetail(
+            @PathVariable Long pageId,
+            @PathVariable Long sectionId,
+            @PathVariable Long elementId,
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            Model model) {
+        Element element = elementService.getActiveOrThrow(elementId);
+        if (PAGE_TYPE.equals(element.getElementType())) {
+            return "redirect:" + pageViewUrl(elementId);
+        }
+        String canonical = detailViewUrl(element);
+        if (!canonical.equals(detailUrl(pageId, sectionId, elementId))) {
+            return "redirect:" + canonical;
+        }
+        populateEditorFrame(model, elementService.getActiveOrThrow(pageId), sectionId);
+        model.addAttribute("detail", ElementResponse.from(element));
+        model.addAttribute("rows", attributeRows(element));
+        boolean hasListOptions = "FIELD_LIST".equals(element.getElementType());
+        model.addAttribute("hasListOptions", hasListOptions);
+        if (hasListOptions) {
+            model.addAttribute("includeInactive", includeInactive);
+            model.addAttribute("options",
+                    elementListOptionService.list(elementId, includeInactive).stream().map(ListOptionResponse::from).toList());
+        }
+        return "page-detail";
+    }
+
+    // --- old detail URLs: kept so existing links and bookmarks still land in the right place ---
+
+    @GetMapping("/elements/{id}/attributes")
+    public String attributeEditor(@PathVariable Long id) {
+        return "redirect:" + detailViewUrl(elementService.getActiveOrThrow(id));
+    }
+
+    @GetMapping("/elements/{id}/list-options")
+    public String listOptions(@PathVariable Long id, @RequestParam(defaultValue = "false") boolean includeInactive) {
+        String url = detailViewUrl(elementService.getActiveOrThrow(id));
+        return "redirect:" + url + (includeInactive ? "?includeInactive=true" : "") + "#list-options";
+    }
+
+    // --- page-level actions -----------------------------------------------------------------
+
     @PostMapping("/pages/{id}/template")
     public String setTemplate(@PathVariable Long id, @RequestParam boolean template, RedirectAttributes redirectAttributes) {
-        return tryOrRedirect(redirectAttributes, "/ui/pages/" + id, () -> mapTemplateService.setTemplate(id, template));
+        return tryOrRedirect(redirectAttributes, pageViewUrl(id), () -> mapTemplateService.setTemplate(id, template));
     }
 
     @GetMapping("/templates")
@@ -96,42 +185,64 @@ public class StructureUiController {
         return tryOrRedirect(redirectAttributes, "/ui/templates", () -> mapTemplateService.createTemplatePage(code, label));
     }
 
+    // --- structure actions ------------------------------------------------------------------
+
     @PostMapping("/elements/{parentId}/clone-map")
     public String cloneMap(@PathVariable Long parentId, @RequestParam Long sourceMapId, RedirectAttributes redirectAttributes) {
-        Element parent = elementService.getActiveOrThrow(parentId);
-        String redirectUrl = "/ui/pages/" + resolvePageId(parent);
+        String redirectUrl = sectionViewUrl(elementService.getActiveOrThrow(parentId));
         return tryOrRedirect(redirectAttributes, redirectUrl, () -> {
             MapCloneResult result = mapTemplateService.cloneMapInto(sourceMapId, parentId);
             redirectAttributes.addFlashAttribute("notice", cloneNotice(result));
         });
     }
 
+    /**
+     * Adding under a page (the left pane's "add section") opens the new section; {@code from} is
+     * the section the user was on, so a rejected add returns them there with the error.
+     */
     @PostMapping("/elements/{parentId}/children")
     public String createChild(
             @PathVariable Long parentId,
             @RequestParam String elementType,
             @RequestParam String code,
             @RequestParam String label,
+            @RequestParam(required = false) Long from,
             RedirectAttributes redirectAttributes) {
         Element parent = elementService.getActiveOrThrow(parentId);
-        String redirectUrl = "/ui/pages/" + resolvePageId(parent);
+        if (PAGE_TYPE.equals(parent.getElementType())) {
+            String failureUrl = from != null ? sectionUrl(parentId, from) : pageViewUrl(parentId);
+            return tryThenRedirect(redirectAttributes, failureUrl, () -> {
+                Element created = elementService.create(parentId, elementType, code, label, null);
+                return sectionUrl(parentId, created.getId());
+            });
+        }
+        String redirectUrl = sectionViewUrl(parent);
         return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementService.create(parentId, elementType, code, label, null));
     }
 
     @PostMapping("/elements/{id}/edit")
     public String editLabel(@PathVariable Long id, @RequestParam String label, RedirectAttributes redirectAttributes) {
-        Element element = elementService.getActiveOrThrow(id);
-        String redirectUrl = "/ui/pages/" + resolvePageId(element);
+        String redirectUrl = sectionViewUrl(elementService.getActiveOrThrow(id));
         return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementService.updateLabel(id, label));
     }
 
     @PostMapping("/elements/{id}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         Element element = elementService.getActiveOrThrow(id);
-        String redirectUrl = !"PAGE".equals(element.getElementType()) ? "/ui/pages/" + resolvePageId(element)
-                : element.isTemplate() ? "/ui/templates"
-                : "/ui/pages";
-        return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementService.softDelete(id));
+        if (PAGE_TYPE.equals(element.getElementType())) {
+            String redirectUrl = element.isTemplate() ? "/ui/templates" : "/ui/pages";
+            return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementService.softDelete(id));
+        }
+        Long pageId = element.getPage().getId();
+        Long sectionId = elementService.getTopLevelSection(id).getId();
+        String currentView = sectionUrl(pageId, sectionId);
+        // Deleting the selected section itself leaves nothing to show there: go to the page's
+        // (new) first section, worked out after the delete.
+        boolean deletingSection = sectionId.equals(id);
+        return tryThenRedirect(redirectAttributes, currentView, () -> {
+            elementService.softDelete(id);
+            return deletingSection ? pageViewUrl(pageId) : currentView;
+        });
     }
 
     @PostMapping("/elements/{id}/move-up")
@@ -144,20 +255,7 @@ public class StructureUiController {
         return moveWithinSiblings(id, 1, redirectAttributes);
     }
 
-    @GetMapping("/elements/{id}/attributes")
-    public String attributeEditor(@PathVariable Long id, Model model) {
-        Element element = elementService.getActiveOrThrow(id);
-        Map<String, String> currentValues = elementAttributeValueService.list(id).stream()
-                .collect(Collectors.toMap(v -> v.getAttributeDefinition().getCode(), ElementAttributeValue::getValue));
-        List<AttributeValueRow> rows = attributeDefinitionService.listApplicableToElementType(element.getElementType()).stream()
-                .map(def -> new AttributeValueRow(
-                        def.getCode(), def.getName(), def.getDescription(), def.getDataType(), currentValues.getOrDefault(def.getCode(), "")))
-                .toList();
-        model.addAttribute("element", ElementResponse.from(element));
-        model.addAttribute("pageId", resolvePageId(element));
-        model.addAttribute("rows", rows);
-        return "attribute-editor";
-    }
+    // --- detail-pane actions ----------------------------------------------------------------
 
     @PostMapping("/elements/{id}/attributes")
     public String saveAttributes(@PathVariable Long id, @RequestParam Map<String, String> allParams, RedirectAttributes redirectAttributes) {
@@ -165,7 +263,6 @@ public class StructureUiController {
         List<String> applicableCodes = attributeDefinitionService.listApplicableToElementType(element.getElementType()).stream()
                 .map(AttributeDefinition::getCode)
                 .toList();
-        String redirectUrl = "/ui/elements/" + id + "/attributes";
         // One call for the whole form: saved atomically, and cross-attribute rules (e.g. a
         // confidential document needing its non-confidential version) are judged on the final
         // state rather than on whichever field happens to be written first. A blank value clears
@@ -174,36 +271,27 @@ public class StructureUiController {
         for (String code : applicableCodes) {
             submitted.put(code, allParams.get(code));
         }
-        return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementAttributeValueService.applyValues(id, submitted));
-    }
-
-    @GetMapping("/elements/{id}/list-options")
-    public String listOptions(
-            @PathVariable Long id, @RequestParam(defaultValue = "false") boolean includeInactive, Model model) {
-        Element element = elementService.getActiveOrThrow(id);
-        model.addAttribute("element", ElementResponse.from(element));
-        model.addAttribute("pageId", resolvePageId(element));
-        model.addAttribute("includeInactive", includeInactive);
-        model.addAttribute("options", elementListOptionService.list(id, includeInactive).stream().map(ListOptionResponse::from).toList());
-        return "list-options";
+        return tryOrRedirect(redirectAttributes, detailViewUrl(element), () -> elementAttributeValueService.applyValues(id, submitted));
     }
 
     @PostMapping("/elements/{id}/list-options")
     public String addListOption(
             @PathVariable Long id, @RequestParam String code, @RequestParam String label, RedirectAttributes redirectAttributes) {
-        String redirectUrl = "/ui/elements/" + id + "/list-options";
+        String redirectUrl = detailViewUrl(elementService.getActiveOrThrow(id)) + "#list-options";
         return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementListOptionService.create(id, code, label, null, false));
     }
 
     @PostMapping("/elements/{id}/list-options/{optionId}/deactivate")
     public String deactivateOption(@PathVariable Long id, @PathVariable Long optionId, RedirectAttributes redirectAttributes) {
-        String redirectUrl = "/ui/elements/" + id + "/list-options";
+        String redirectUrl = detailViewUrl(elementService.getActiveOrThrow(id)) + "#list-options";
         return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementListOptionService.deactivate(id, optionId));
     }
 
+    // --- helpers ----------------------------------------------------------------------------
+
     private String moveWithinSiblings(Long id, int direction, RedirectAttributes redirectAttributes) {
         Element element = elementService.getActiveOrThrow(id);
-        String redirectUrl = "/ui/pages/" + resolvePageId(element);
+        String redirectUrl = sectionViewUrl(element);
         Element parent = element.getParentElement();
         if (parent == null) {
             return "redirect:" + redirectUrl;
@@ -218,6 +306,29 @@ public class StructureUiController {
                 elementService.reorderChildren(parentId, ids);
             }
         });
+    }
+
+    /** Everything both panes need, whatever the right pane shows. */
+    private void populateEditorFrame(Model model, Element page, Long selectedSectionId) {
+        List<ElementResponse> switcherPages = new ArrayList<>(elementService.getPages().stream().map(ElementResponse::from).toList());
+        if (switcherPages.stream().noneMatch(p -> p.id().equals(page.getId()))) {
+            switcherPages.add(0, ElementResponse.from(page));
+        }
+        model.addAttribute("page", ElementResponse.from(page));
+        model.addAttribute("pageIsTemplate", page.isTemplate());
+        model.addAttribute("switcherPages", switcherPages);
+        model.addAttribute("sections", elementService.getChildren(page.getId()).stream().map(ElementResponse::from).toList());
+        model.addAttribute("pageChildTypes", elementService.getAllowedChildTypes(PAGE_TYPE));
+        model.addAttribute("selectedSectionId", selectedSectionId);
+    }
+
+    private List<AttributeValueRow> attributeRows(Element element) {
+        Map<String, String> currentValues = elementAttributeValueService.list(element.getId()).stream()
+                .collect(Collectors.toMap(v -> v.getAttributeDefinition().getCode(), ElementAttributeValue::getValue));
+        return attributeDefinitionService.listApplicableToElementType(element.getElementType()).stream()
+                .map(def -> new AttributeValueRow(
+                        def.getCode(), def.getName(), def.getDescription(), def.getDataType(), currentValues.getOrDefault(def.getCode(), "")))
+                .toList();
     }
 
     private ElementTreeNode buildTree(Element element) {
@@ -248,18 +359,52 @@ public class StructureUiController {
         return notice;
     }
 
-    private Long resolvePageId(Element element) {
-        return "PAGE".equals(element.getElementType()) ? element.getId() : element.getPage().getId();
+    private static String sectionUrl(Long pageId, Long sectionId) {
+        return "/ui/pages/" + pageId + "/sections/" + sectionId;
+    }
+
+    private static String detailUrl(Long pageId, Long sectionId, Long elementId) {
+        return sectionUrl(pageId, sectionId) + "/elements/" + elementId;
+    }
+
+    /** A page's default view: its first section, or the bare page when it has none yet. */
+    private String pageViewUrl(Long pageId) {
+        List<Element> sections = elementService.getChildren(pageId);
+        return sections.isEmpty() ? "/ui/pages/" + pageId : sectionUrl(pageId, sections.get(0).getId());
+    }
+
+    /** Where the editor shows this element: its page, with its top-level section selected. */
+    private String sectionViewUrl(Element element) {
+        if (PAGE_TYPE.equals(element.getElementType())) {
+            return pageViewUrl(element.getId());
+        }
+        return sectionUrl(element.getPage().getId(), elementService.getTopLevelSection(element.getId()).getId());
+    }
+
+    private String detailViewUrl(Element element) {
+        if (PAGE_TYPE.equals(element.getElementType())) {
+            return pageViewUrl(element.getId());
+        }
+        Long sectionId = elementService.getTopLevelSection(element.getId()).getId();
+        return detailUrl(element.getPage().getId(), sectionId, element.getId());
     }
 
     private String tryOrRedirect(RedirectAttributes redirectAttributes, String redirectUrl, Runnable action) {
-        try {
+        return tryThenRedirect(redirectAttributes, redirectUrl, () -> {
             action.run();
+            return redirectUrl;
+        });
+    }
+
+    /** Runs the action; on success redirects where it says, on a user-facing failure to {@code failureUrl} with the error. */
+    private String tryThenRedirect(RedirectAttributes redirectAttributes, String failureUrl, Supplier<String> action) {
+        try {
+            return "redirect:" + action.get();
         } catch (InvalidElementHierarchyException | InvalidAttributeValueException | ResourceNotFoundException ex) {
             redirectAttributes.addFlashAttribute("error", ex.getMessage());
         } catch (DataIntegrityViolationException ex) {
             redirectAttributes.addFlashAttribute("error", DataIntegrityMessage.from(ex).message());
         }
-        return "redirect:" + redirectUrl;
+        return "redirect:" + failureUrl;
     }
 }

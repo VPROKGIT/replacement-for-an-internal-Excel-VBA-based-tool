@@ -50,6 +50,103 @@ body {
     padding: 1.5rem;
 }
 
+.container-wide {
+    max-width: 1280px;
+}
+
+/* Two-pane page editor */
+.editor {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.editor-nav {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    position: sticky;
+    top: 1rem;
+}
+
+.page-switcher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.page-switcher label {
+    width: 100%;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.page-switcher select {
+    flex: 1;
+    min-width: 0;
+}
+
+.nav-back {
+    font-size: 0.9rem;
+    margin: 0.6rem 0 1rem;
+}
+
+.nav-heading {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 0 0 0.4rem;
+}
+
+.section-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+}
+
+.section-list a {
+    display: block;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.section-list a:hover {
+    background: #eef2f7;
+}
+
+.section-list li.selected a {
+    background: #dbeafe;
+    font-weight: 600;
+}
+
+.section-list .node-code {
+    display: block;
+    font-weight: 400;
+}
+
+.add-section-form {
+    display: grid;
+    gap: 0.35rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.75rem;
+}
+
+.editor-main {
+    min-width: 0;
+}
+
+.detail-pane h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 h1 {
     margin-top: 0;
 }
