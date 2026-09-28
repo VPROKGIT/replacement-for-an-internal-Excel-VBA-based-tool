@@ -268,7 +268,8 @@ A `FIELD_DOCUMENT` is a leaf field where the end user provides a document. The e
 handling are the frontend's responsibility, not this application's. It may appear wherever other
 fields may: under a `SECTION`, a `SUBSECTION`, or inside a `MAP`.
 
-Two attributes apply to it, and only to it:
+Like every other field it can carry `mandatory`, `readOnly` and `helpText`. In addition, two
+attributes apply to it, and only to it:
 
 | Attribute key                 | Type    | Meaning                                                                 |
 |-------------------------------|---------|-------------------------------------------------------------------------|
