@@ -97,6 +97,42 @@ class StructureUiIT {
     }
 
     @Test
+    void documentAttributesAreEditableAndTheFormSavesThemTogether() throws Exception {
+        mockMvc.perform(post("/ui/pages").param("code", "UI_DOC_PAGE").param("label", "UI Doc Page"));
+        Element page = elementRepository.findByElementTypeAndCodeAndDeletedAtIsNull("PAGE", "UI_DOC_PAGE").orElseThrow();
+        Element section = elementService.create(page.getId(), "SECTION", "UI_DOC_SEC", "Docs", null);
+        Element document = elementService.create(section.getId(), "FIELD_DOCUMENT", "UI_DOSSIER", "Dossier", null);
+
+        // Both attributes are offered in the field editor, with their hints.
+        mockMvc.perform(get("/ui/elements/{id}/attributes", document.getId()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Confidential")))
+                .andExpect(content().string(containsString("Non-confidential version (code)")))
+                .andExpect(content().string(containsString("Required when Confidential is true")));
+
+        // Rule broken in one form submit: rejected with a banner, and nothing saved.
+        MvcResult rejected = mockMvc.perform(post("/ui/elements/{id}/attributes", document.getId())
+                        .param("CONFIDENTIAL", "true")
+                        .param("NON_CONFIDENTIAL_VERSION_CODE", ""))
+                .andExpect(redirectedUrl("/ui/elements/" + document.getId() + "/attributes"))
+                .andReturn();
+        mockMvc.perform(get("/ui/elements/{id}/attributes", document.getId())
+                        .session((MockHttpSession) rejected.getRequest().getSession()))
+                .andExpect(content().string(containsString("must name its non-confidential version")));
+        mockMvc.perform(get("/api/elements/{id}/attribute-values", document.getId()))
+                .andExpect(content().json("[]"));
+
+        // Both set in the same submit: accepted, whichever the server happens to write first.
+        mockMvc.perform(post("/ui/elements/{id}/attributes", document.getId())
+                        .param("CONFIDENTIAL", "true")
+                        .param("NON_CONFIDENTIAL_VERSION_CODE", "UI_DOSSIER_PUBLIC"))
+                .andExpect(redirectedUrl("/ui/elements/" + document.getId() + "/attributes"));
+        mockMvc.perform(get("/api/elements/{id}/attribute-values", document.getId()))
+                .andExpect(content().string(containsString("UI_DOSSIER_PUBLIC")))
+                .andExpect(content().string(containsString("CONFIDENTIAL")));
+    }
+
+    @Test
     void templatesAreBrowsableAndUsingOneClonesItIntoARealPage() throws Exception {
         mockMvc.perform(post("/ui/templates").param("code", "UI_TPL").param("label", "UI Template"))
                 .andExpect(redirectedUrl("/ui/templates"));

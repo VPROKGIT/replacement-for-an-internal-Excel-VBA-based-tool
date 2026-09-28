@@ -14,11 +14,16 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ElementAttributeValueService {
+
+    static final String CONFIDENTIAL = "CONFIDENTIAL";
+    static final String NON_CONFIDENTIAL_VERSION_CODE = "NON_CONFIDENTIAL_VERSION_CODE";
 
     private final ElementRepository elementRepository;
     private final AttributeDefinitionRepository attributeDefinitionRepository;
@@ -44,8 +49,38 @@ public class ElementAttributeValueService {
     @Transactional
     public ElementAttributeValue setValue(Long elementId, String attributeCode, String rawValue) {
         Element element = getActiveElementOrThrow(elementId);
-        AttributeDefinition attributeDefinition = getAttributeDefinitionOrThrow(attributeCode);
+        ElementAttributeValue saved = upsert(element, attributeCode, rawValue);
+        enforceConfidentialDocumentRule(elementId);
+        return saved;
+    }
 
+    @Transactional
+    public void deleteValue(Long elementId, String attributeCode) {
+        getActiveElementOrThrow(elementId);
+        remove(elementId, attributeCode);
+        enforceConfidentialDocumentRule(elementId);
+    }
+
+    /**
+     * Applies a whole form's worth of values at once; a null or blank value clears that attribute.
+     * Cross-attribute rules are checked once, against the final state, so the outcome never depends
+     * on the order values arrive in - and a rejection saves none of them.
+     */
+    @Transactional
+    public void applyValues(Long elementId, Map<String, String> valuesByCode) {
+        Element element = getActiveElementOrThrow(elementId);
+        valuesByCode.forEach((code, value) -> {
+            if (value == null || value.isBlank()) {
+                remove(elementId, code);
+            } else {
+                upsert(element, code, value);
+            }
+        });
+        enforceConfidentialDocumentRule(elementId);
+    }
+
+    private ElementAttributeValue upsert(Element element, String attributeCode, String rawValue) {
+        AttributeDefinition attributeDefinition = getAttributeDefinitionOrThrow(attributeCode);
         if (!attributeApplicabilityRepository.existsByIdAttributeDefinitionIdAndIdElementType(
                 attributeDefinition.getId(), element.getElementType())) {
             throw new InvalidAttributeValueException(
@@ -54,17 +89,34 @@ public class ElementAttributeValueService {
         validateValueMatchesDataType(rawValue, attributeDefinition.getDataType());
 
         ElementAttributeValue value = elementAttributeValueRepository
-                .findByElementIdAndAttributeDefinitionId(elementId, attributeDefinition.getId())
+                .findByElementIdAndAttributeDefinitionId(element.getId(), attributeDefinition.getId())
                 .orElseGet(() -> new ElementAttributeValue(element, attributeDefinition, rawValue));
         value.setValue(rawValue);
         return elementAttributeValueRepository.save(value);
     }
 
-    @Transactional
-    public void deleteValue(Long elementId, String attributeCode) {
-        getActiveElementOrThrow(elementId);
+    private void remove(Long elementId, String attributeCode) {
         AttributeDefinition attributeDefinition = getAttributeDefinitionOrThrow(attributeCode);
         elementAttributeValueRepository.deleteByElementIdAndAttributeDefinitionId(elementId, attributeDefinition.getId());
+    }
+
+    /**
+     * v1 rule for FIELD_DOCUMENT: a confidential document must name its non-confidential version.
+     *
+     * <p>Deliberately presence-only. It does NOT check that the named code exists on the page, nor
+     * that it belongs to a FIELD_DOCUMENT. That is a conscious v1 scope cut (FORMS-15), not an
+     * oversight: a dangling or wrong-type reference can be saved, and export consumers must
+     * tolerate one.
+     */
+    private void enforceConfidentialDocumentRule(Long elementId) {
+        Map<String, String> values = elementAttributeValueRepository.findByElementId(elementId).stream()
+                .collect(Collectors.toMap(v -> v.getAttributeDefinition().getCode(), ElementAttributeValue::getValue));
+        boolean confidential = "true".equalsIgnoreCase(values.get(CONFIDENTIAL));
+        String counterpart = values.get(NON_CONFIDENTIAL_VERSION_CODE);
+        if (confidential && (counterpart == null || counterpart.isBlank())) {
+            throw new InvalidAttributeValueException(
+                    "A confidential document must name its non-confidential version: set NON_CONFIDENTIAL_VERSION_CODE");
+        }
     }
 
     private Element getActiveElementOrThrow(Long elementId) {

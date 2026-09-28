@@ -302,6 +302,59 @@ class FormExportIT {
     }
 
     @Test
+    void exportsDocumentFieldsWithTheirConfidentialityAttributes() throws Exception {
+        // Mirrors the FIELD_DOCUMENT worked example in docs/json-export-schema.md, asserted STRICT.
+        Element page = elementService.create(null, "PAGE", "DOC_EXPORT_PAGE", "Document Export Page", null);
+        Element section = elementService.create(page.getId(), "SECTION", "DOC_SEC", "Supporting documents", null);
+        Element full = elementService.create(section.getId(), "FIELD_DOCUMENT", "DOSSIER_FULL", "Full dossier", null);
+        Element publicVersion = elementService.create(section.getId(), "FIELD_DOCUMENT", "DOSSIER_PUBLIC", "Public dossier", null);
+
+        elementAttributeValueService.setValue(full.getId(), "NON_CONFIDENTIAL_VERSION_CODE", "DOSSIER_PUBLIC");
+        elementAttributeValueService.setValue(full.getId(), "CONFIDENTIAL", "true");
+        elementAttributeValueService.setValue(publicVersion.getId(), "CONFIDENTIAL", "false");
+
+        String expected = """
+                {
+                  "id": %d,
+                  "code": "DOC_EXPORT_PAGE",
+                  "label": "Document Export Page",
+                  "type": "PAGE",
+                  "children": [
+                    {
+                      "id": %d,
+                      "code": "DOC_SEC",
+                      "label": "Supporting documents",
+                      "type": "SECTION",
+                      "children": [
+                        {
+                          "id": %d,
+                          "code": "DOSSIER_FULL",
+                          "label": "Full dossier",
+                          "type": "FIELD_DOCUMENT",
+                          "attributes": { "confidential": true, "nonConfidentialVersionCode": "DOSSIER_PUBLIC" }
+                        },
+                        {
+                          "id": %d,
+                          "code": "DOSSIER_PUBLIC",
+                          "label": "Public dossier",
+                          "type": "FIELD_DOCUMENT",
+                          "attributes": { "confidential": false }
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """
+                .formatted(page.getId(), section.getId(), full.getId(), publicVersion.getId());
+
+        String actual = mockMvc.perform(get("/api/export/pages/by-code/{code}", "DOC_EXPORT_PAGE"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JSONAssert.assertEquals(expected, actual, JSONCompareMode.STRICT);
+    }
+
+    @Test
     void templatePagesAreNeverServedByEitherExportEndpoint() throws Exception {
         // Non-empty on purpose: a template with real content in it, not the empty-page path.
         Element template = mapTemplateService.createTemplatePage("EXPORT_TPL", "Export Template");

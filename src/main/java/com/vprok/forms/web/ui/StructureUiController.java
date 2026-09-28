@@ -17,6 +17,7 @@ import com.vprok.forms.web.error.InvalidElementHierarchyException;
 import com.vprok.forms.web.error.ResourceNotFoundException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -149,7 +150,8 @@ public class StructureUiController {
         Map<String, String> currentValues = elementAttributeValueService.list(id).stream()
                 .collect(Collectors.toMap(v -> v.getAttributeDefinition().getCode(), ElementAttributeValue::getValue));
         List<AttributeValueRow> rows = attributeDefinitionService.listApplicableToElementType(element.getElementType()).stream()
-                .map(def -> new AttributeValueRow(def.getCode(), def.getName(), def.getDataType(), currentValues.getOrDefault(def.getCode(), "")))
+                .map(def -> new AttributeValueRow(
+                        def.getCode(), def.getName(), def.getDescription(), def.getDataType(), currentValues.getOrDefault(def.getCode(), "")))
                 .toList();
         model.addAttribute("element", ElementResponse.from(element));
         model.addAttribute("pageId", resolvePageId(element));
@@ -164,19 +166,15 @@ public class StructureUiController {
                 .map(AttributeDefinition::getCode)
                 .toList();
         String redirectUrl = "/ui/elements/" + id + "/attributes";
-        return tryOrRedirect(redirectAttributes, redirectUrl, () -> {
-            // A blank submitted value clears any existing value rather than being treated as
-            // "explicitly set to the empty string" (which the API otherwise allows for STRING
-            // attributes) - simpler and more intuitive for a form-based editor.
-            for (String code : applicableCodes) {
-                String value = allParams.get(code);
-                if (value == null || value.isBlank()) {
-                    elementAttributeValueService.deleteValue(id, code);
-                } else {
-                    elementAttributeValueService.setValue(id, code, value);
-                }
-            }
-        });
+        // One call for the whole form: saved atomically, and cross-attribute rules (e.g. a
+        // confidential document needing its non-confidential version) are judged on the final
+        // state rather than on whichever field happens to be written first. A blank value clears
+        // the attribute rather than setting it to the empty string.
+        Map<String, String> submitted = new LinkedHashMap<>();
+        for (String code : applicableCodes) {
+            submitted.put(code, allParams.get(code));
+        }
+        return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementAttributeValueService.applyValues(id, submitted));
     }
 
     @GetMapping("/elements/{id}/list-options")

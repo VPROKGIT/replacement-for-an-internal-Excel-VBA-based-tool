@@ -233,6 +233,20 @@ class StructureApiIT {
     }
 
     @Test
+    void confidentialDocumentWithoutCounterpartIsA400ProblemDetail() throws Exception {
+        Long pageId = createElement(null, "PAGE", "API_PAGE_12", "API Page 12");
+        Long sectionId = createElement(pageId, "SECTION", "SEC_12", "Section 12");
+        Long documentId = createElement(sectionId, "FIELD_DOCUMENT", "DOC_12", "Document 12");
+
+        mockMvc.perform(put("/api/elements/{id}/attribute-values/CONFIDENTIAL", documentId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new AttributeValueRequest("true"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail", containsString("NON_CONFIDENTIAL_VERSION_CODE")));
+    }
+
+    @Test
     void pageListingExcludesTemplatePages() throws Exception {
         createElement(null, "PAGE", "API_PAGE_11_REAL", "Real page");
         mapTemplateService.createTemplatePage("API_PAGE_11_TPL", "Template page");
