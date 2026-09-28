@@ -183,6 +183,36 @@ class ElementServiceTest {
                 .isInstanceOf(InvalidElementHierarchyException.class);
     }
 
+    // --- getTopLevelSection() ----------------------------------------------
+
+    @Test
+    void getTopLevelSection_walksUpToTheDirectChildOfThePage() {
+        // page(1) -> section(2) -> subsection(3) -> map(4) -> field(5)
+        Element page = mockElement(1L, "PAGE");
+        Element section = mockElement(2L, "SECTION");
+        Element subsection = mockElement(3L, "SUBSECTION");
+        Element map = mockElement(4L, "MAP");
+        Element field = mockElement(5L, "FIELD_TEXT");
+        when(section.getParentElement()).thenReturn(page);
+        when(subsection.getParentElement()).thenReturn(section);
+        when(map.getParentElement()).thenReturn(subsection);
+        when(field.getParentElement()).thenReturn(map);
+        when(elementRepository.findByIdAndDeletedAtIsNull(5L)).thenReturn(java.util.Optional.of(field));
+        when(elementRepository.findByIdAndDeletedAtIsNull(2L)).thenReturn(java.util.Optional.of(section));
+
+        assertThat(service.getTopLevelSection(5L)).isSameAs(section);
+        assertThat(service.getTopLevelSection(2L)).isSameAs(section);
+    }
+
+    @Test
+    void getTopLevelSection_ofAPage_isRejected() {
+        Element page = mockElement(1L, "PAGE");
+        when(elementRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(java.util.Optional.of(page));
+
+        assertThatThrownBy(() -> service.getTopLevelSection(1L))
+                .isInstanceOf(InvalidElementHierarchyException.class);
+    }
+
     // --- softDelete() -----------------------------------------------------
 
     @Test

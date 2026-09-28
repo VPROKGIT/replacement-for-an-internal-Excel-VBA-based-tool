@@ -50,6 +50,23 @@ public class ElementService {
         return elementRepository.findByParentElementIdAndDeletedAtIsNullOrderByDisplayOrderAsc(parentId);
     }
 
+    /**
+     * The element's top-level ancestor - the direct child of its PAGE, which the page editor
+     * selects as "the section" - or the element itself if it already is one. Walks the lazy parent
+     * chain inside this transaction, which callers outside one (the UI) cannot do.
+     */
+    @Transactional(readOnly = true)
+    public Element getTopLevelSection(Long elementId) {
+        Element current = getActiveOrThrow(elementId);
+        if (PAGE_TYPE.equals(current.getElementType())) {
+            throw new InvalidElementHierarchyException("A PAGE is not inside a section");
+        }
+        while (!PAGE_TYPE.equals(current.getParentElement().getElementType())) {
+            current = current.getParentElement();
+        }
+        return current;
+    }
+
     /** Data-driven from element_type_rule, so "add child" UI never hardcodes the allowed types. */
     public List<String> getAllowedChildTypes(String parentType) {
         return elementTypeRuleRepository.findByIdParentType(parentType).stream()

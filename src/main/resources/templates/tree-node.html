@@ -25,10 +25,14 @@
             <button type="submit">Rename</button>
         </form>
 
-        <a th:if="${#strings.startsWith(node.element.elementType, 'FIELD_')}"
-           th:href="@{/ui/elements/{id}/attributes(id=${node.element.id})}" class="button">Attributes</a>
+        <!-- Every node type gets its detail pane, containers included: which attributes it shows is
+             seed data, so a type with none says so there rather than hiding the entry point.
+             page/selectedSectionId come from the page editor's model, which fragments share. -->
+        <a th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${node.element.id})}"
+           class="button">Attributes</a>
         <a th:if="${node.element.elementType == 'FIELD_LIST'}"
-           th:href="@{/ui/elements/{id}/list-options(id=${node.element.id})}" class="button">List options</a>
+           th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${node.element.id})} + '#list-options'"
+           class="button">List options</a>
 
         <form th:action="@{/ui/elements/{id}/delete(id=${node.element.id})}" method="post" class="inline-form"
               onsubmit="return confirm('Delete this element and everything under it?');">
