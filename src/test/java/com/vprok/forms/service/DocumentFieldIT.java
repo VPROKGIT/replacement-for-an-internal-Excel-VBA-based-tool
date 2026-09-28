@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.vprok.forms.entity.AttributeDefinition;
 import com.vprok.forms.entity.Element;
 import com.vprok.forms.entity.ElementAttributeValue;
 import com.vprok.forms.web.error.InvalidAttributeValueException;
@@ -37,6 +38,9 @@ class DocumentFieldIT {
 
     @Autowired
     private ElementAttributeValueService attributeValues;
+
+    @Autowired
+    private AttributeDefinitionService attributeDefinitions;
 
     /** A fresh page with one section holding one FIELD_DOCUMENT; returns the document. */
     private Element documentOnNewPage(String pageCode) {
@@ -72,6 +76,22 @@ class DocumentFieldIT {
                 .filter(e -> "DOC_IN_SECTION".equals(e.getCode())).findFirst().orElseThrow();
         assertThatThrownBy(() -> elementService.create(document.getId(), "FIELD_TEXT", "INSIDE_DOC", "Inside", null))
                 .isInstanceOf(InvalidElementHierarchyException.class);
+    }
+
+    @Test
+    void aDocumentHasExactlyTheStandardFieldAttributesPlusItsTwoOwn() {
+        assertThat(attributeDefinitions.listApplicableToElementType("FIELD_DOCUMENT"))
+                .extracting(AttributeDefinition::getCode)
+                .containsExactlyInAnyOrder(
+                        "MANDATORY", "READ_ONLY", "HELP_TEXT", "CONFIDENTIAL", "NON_CONFIDENTIAL_VERSION_CODE");
+
+        Element document = documentOnNewPage("DOC_STANDARD_ATTRS");
+        attributeValues.setValue(document.getId(), "MANDATORY", "true");
+        attributeValues.setValue(document.getId(), "READ_ONLY", "false");
+        attributeValues.setValue(document.getId(), "HELP_TEXT", "PDF, max 10 MB");
+
+        assertThat(valuesOf(document)).isEqualTo(Map.of(
+                "MANDATORY", "true", "READ_ONLY", "false", "HELP_TEXT", "PDF, max 10 MB"));
     }
 
     @Test
