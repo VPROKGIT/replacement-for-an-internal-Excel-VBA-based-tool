@@ -45,14 +45,39 @@ works for a portable Maven distribution if you'd rather not rely on the wrapper.
    docker compose up -d
    ```
 
-3. **Run the application:**
+3. **Run the application** with the `local` profile, which lets you sign in as **dev / dev**:
 
    ```bash
-   ./mvnw spring-boot:run
+   ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
    ```
 
-   The web UI is served at `http://localhost:8080`. Flyway applies the schema (`V1__init_schema.sql`,
-   `V2__seed_data.sql`) automatically on startup — no manual migration step.
+   or, from a built jar: `java -jar target/*.jar --spring.profiles.active=local`.
+
+   The web UI is served at `http://localhost:8080`. Flyway applies every migration in
+   `src/main/resources/db/migration` automatically on startup — no manual migration step.
+
+### Signing in (users)
+
+Every page and every API call needs a signed-in user (FORMS-12). There is no user table: the people
+who may sign in are one setting, `FORMS_SECURITY_USERS`, in the form
+`name:bcrypt-hash,name:bcrypt-hash`. Everyone who can sign in may do everything.
+
+- **Locally**, the `local` profile (`application-local.yml`) defines `dev` / `dev`. Never use that
+  profile on a shared host; an environment variable overrides it anyway.
+- **On a host**, set `FORMS_SECURITY_USERS`. Without it the app refuses to start, rather than start
+  with nobody able to sign in. Plain-text passwords are refused; hash each one with BCrypt, e.g.
+  with Docker:
+
+  ```bash
+  docker run --rm httpd:2.4-alpine htpasswd -nbBC 10 alice 'her-password'
+  ```
+
+  This prints `alice:$2y$10$...` — exactly one entry of the setting. Join entries with commas. Send
+  each person their own password; the hashes alone can't be turned back into passwords.
+- **The REST API and the JSON export** (`/api/**`) take the same users via HTTP Basic, with no
+  session and no CSRF token — e.g. `curl -u alice:her-password http://localhost:8080/api/pages`.
+  Give a tool (such as the frontend's export job) its own entry rather than a person's password.
+- The signed-in name is recorded in `created_by` / `updated_by` on every element change.
 
 ### Windows-specific gotcha: loopback socket failure on startup
 
@@ -145,5 +170,6 @@ smart-commit syntax (e.g. `FORMS-11 #comment ...`).
   [FORMS-9](https://vprokbv.atlassian.net/browse/FORMS-9), it does not produce Jira comments or
   transitions automatically — installing the "GitHub for Jira" app did not fix this either. Ticket
   comments and status transitions are done directly against the Jira API instead.
-- **No authentication.** `AuditorAware` returns empty, so `created_by`/`updated_by` are null on
-  every row until a real principal exists.
+- **Sign-in is a fixed list of users** (FORMS-12): no roles, no user management page, no password
+  reset. Changing who can sign in means changing `FORMS_SECURITY_USERS` and restarting. Rows
+  created before FORMS-12 have null `created_by`/`updated_by`.

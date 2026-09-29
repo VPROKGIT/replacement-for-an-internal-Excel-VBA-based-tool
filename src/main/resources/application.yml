@@ -19,3 +19,9 @@ spring:
 
 server:
   port: 8080
+
+forms:
+  security:
+    # Who may sign in (FORMS-12): name:bcrypt-hash[,name:bcrypt-hash...]. Set FORMS_SECURITY_USERS
+    # on the host; never commit real hashes. Locally, run with --spring.profiles.active=local.
+    users: ${FORMS_SECURITY_USERS:}

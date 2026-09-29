@@ -1,0 +1,6 @@
+# Local development only: --spring.profiles.active=local. Signs in as dev / dev.
+# Never activate this profile on a shared host - set FORMS_SECURITY_USERS there instead
+# (an environment variable also overrides this file, so a host can't fall back to dev/dev).
+forms:
+  security:
+    users: "dev:{noop}dev"
