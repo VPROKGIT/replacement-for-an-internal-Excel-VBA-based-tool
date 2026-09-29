@@ -2,6 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:fragment="head(title)">
     <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title th:text="${title}">Form Structure Builder</title>
     <link rel="stylesheet" th:href="@{/css/app.css}"/>
 </head>
@@ -10,10 +11,15 @@
     <a th:href="@{/ui/pages}" class="brand">Form Structure Builder</a>
     <nav class="site-nav">
         <a th:href="@{/ui/pages}">Pages</a>
-        <a th:href="@{/ui/templates}">Templates</a>
     </nav>
 </header>
 <div th:fragment="errorBanner" th:if="${error}" class="banner banner-error" th:text="${error}">Error</div>
 <div th:fragment="noticeBanner" th:if="${notice}" class="banner banner-notice" th:text="${notice}">Notice</div>
+<!-- What the editor has on screen, sent with every editor action so it returns there afterwards
+     (while it still exists). Reads the page editor's model, which fragments share. -->
+<th:block th:fragment="returnTo">
+    <input type="hidden" name="section" th:if="${selectedSectionId}" th:value="${selectedSectionId}"/>
+    <input type="hidden" name="selected" th:if="${selectedElementId}" th:value="${selectedElementId}"/>
+</th:block>
 </body>
 </html>

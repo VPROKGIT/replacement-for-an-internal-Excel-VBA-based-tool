@@ -13,6 +13,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -36,13 +37,22 @@ public class ElementService {
      * rows, so a deleted element can never surface through a client-facing endpoint.
      */
     public Element getActiveOrThrow(Long id) {
-        return elementRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Element " + id + " not found"));
+        return findActive(id).orElseThrow(() -> new ResourceNotFoundException("Element " + id + " not found"));
     }
 
-    /** Real form pages only; template pages are listed separately by MapTemplateService. */
+    /** The same soft-delete-filtered read, for callers where "gone" is an expected answer. */
+    public Optional<Element> findActive(Long id) {
+        return id == null ? Optional.empty() : elementRepository.findByIdAndDeletedAtIsNull(id);
+    }
+
+    /** Real form pages only; template pages (currently unused, see MapTemplateService) are left out. */
     public List<Element> getPages() {
         return elementRepository.findByPageIdIsNullAndTemplateFalseAndDeletedAtIsNullOrderByCodeAsc();
+    }
+
+    /** How many elements a page holds at any depth, not counting the page itself. */
+    public long countElementsOnPage(Long pageId) {
+        return elementRepository.countByPageIdAndDeletedAtIsNull(pageId);
     }
 
     public List<Element> getChildren(Long parentId) {
