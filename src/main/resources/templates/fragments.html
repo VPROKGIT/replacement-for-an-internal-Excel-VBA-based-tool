@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:fragment="head(title)">
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -9,9 +9,13 @@
 <body>
 <header th:fragment="nav" class="site-header">
     <a th:href="@{/ui/pages}" class="brand">Form Structure Builder</a>
-    <nav class="site-nav">
+    <nav class="site-nav" sec:authorize="isAuthenticated()">
         <a th:href="@{/ui/pages}">Pages</a>
     </nav>
+    <form sec:authorize="isAuthenticated()" th:action="@{/logout}" method="post" class="site-user">
+        <span sec:authentication="name">user</span>
+        <button type="submit" class="small-button">Sign out</button>
+    </form>
 </header>
 <div th:fragment="errorBanner" th:if="${error}" class="banner banner-error" th:text="${error}">Error</div>
 <div th:fragment="noticeBanner" th:if="${notice}" class="banner banner-notice" th:text="${notice}">Notice</div>

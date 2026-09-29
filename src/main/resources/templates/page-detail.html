@@ -164,8 +164,10 @@
         </aside>
     </div>
 
-    <!-- Posted by js/editor.js when a field is dropped on another cell of its grid. -->
-    <form id="grid-move-form" method="post" hidden="hidden" th:attr="data-action-prefix=@{/ui/elements/}">
+    <!-- Posted by js/editor.js when a field is dropped on another cell of its grid. The th:action
+         is only there so Thymeleaf adds the CSRF token; the script sets the real action. -->
+    <form id="grid-move-form" method="post" hidden="hidden" th:action="@{/ui/elements/}"
+          th:attr="data-action-prefix=@{/ui/elements/}">
         <th:block th:replace="~{fragments :: returnTo}"></th:block>
         <input type="hidden" name="row"/>
         <input type="hidden" name="column"/>
