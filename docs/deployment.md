@@ -66,7 +66,11 @@ then prints the finished line and copies it to the clipboard. Paste that as the 
 go to the host. To add someone later, run the script for the new person and append `,` plus
 their entry to the existing value.
 
-Without the script, one entry per person is `docker run --rm httpd:2.4-alpine htpasswd -nbBC 10
+Already have the list in a document, one `name - password` per line? Copy it (Ctrl+C) and run
+`powershell -ExecutionPolicy Bypass -File scripts\users-from-clipboard.ps1` instead: it reads the
+list from the clipboard (Word's long dashes are fine) and replaces it there with the finished line.
+
+Without either script, one entry per person is `docker run --rm httpd:2.4-alpine htpasswd -nbBC 10
 anna 'her-password'` (on a Linux or macOS shell; Windows PowerShell can mangle quotes and special
 characters in the password — prefer the script there). Join the entries with commas, no spaces.
 
