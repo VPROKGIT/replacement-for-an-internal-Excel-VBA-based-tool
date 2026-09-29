@@ -48,16 +48,27 @@ You create the accounts; nothing here needs a credit card.
 
 ### 2. The users
 
-Pick a user name for each reviewer and a strong password (a password manager can generate one).
-Hash each password — with Docker Desktop running:
+`FORMS_SECURITY_USERS` is the list of people who may sign in, as one line:
+`name:scrambled-password,name:scrambled-password,...` — each password BCrypt-hashed, never in
+plain text. For example (shortened): `anna:$2y$10$Qm9v...,marc:$2y$10$Zk8w...`.
 
-```bash
-docker run --rm httpd:2.4-alpine htpasswd -nbBC 10 alice 'her-password'
+Pick a user name and a strong password for each reviewer (a password manager can generate one),
+then let the helper script build the line — with Docker Desktop running, from the repository
+folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\new-reviewer-users.ps1
 ```
 
-It prints `alice:$2y$10$...`. Join the lines with commas, no spaces:
-`alice:$2y$10$...,bob:$2y$10$...` — that is `FORMS_SECURITY_USERS`. Send each person their own
-password privately; only the hashes go to the host.
+It asks for each name and password (typed hidden, twice), scrambles and checks each password,
+then prints the finished line and copies it to the clipboard. Paste that as the value of
+`FORMS_SECURITY_USERS`. Send each person their own password privately; only the scrambled values
+go to the host. To add someone later, run the script for the new person and append `,` plus
+their entry to the existing value.
+
+Without the script, one entry per person is `docker run --rm httpd:2.4-alpine htpasswd -nbBC 10
+anna 'her-password'` (on a Linux or macOS shell; Windows PowerShell can mangle quotes and special
+characters in the password — prefer the script there). Join the entries with commas, no spaces.
 
 ### 3. The app (Render)
 
