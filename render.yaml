@@ -1,0 +1,24 @@
+# Render Blueprint for the review environment (FORMS-21). See docs/deployment.md.
+# The database lives on Neon (free, Frankfurt), not on Render: Render's free PostgreSQL expires
+# after 30 days. The four secrets below are asked for once, when the Blueprint is created.
+services:
+  - type: web
+    name: form-structure-builder
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./Dockerfile
+    # Answers without a database round trip, so health checks don't keep the database awake.
+    healthCheckPath: /login
+    # Every push to main redeploys.
+    autoDeployTrigger: commit
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: FORMS_SECURITY_USERS
+        sync: false

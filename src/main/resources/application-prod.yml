@@ -1,0 +1,49 @@
+# Hosted environments (FORMS-21), activated by SPRING_PROFILES_ACTIVE=prod (the Docker image's
+# default). Everything host-specific comes from environment variables, so the same image runs on
+# any host:
+#   SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD   the PostgreSQL database
+#   FORMS_SECURITY_USERS                            who may sign in (see README)
+#   PORT                                            set by the host (Render: 10000)
+# Sized for a small free instance (Render free: 512 MB, 0.1 CPU) and a free database that pauses
+# when idle (Neon free).
+
+server:
+  port: ${PORT:8080}
+  # The host terminates HTTPS and forwards plain HTTP with X-Forwarded-* headers: trust them, so
+  # redirects stay on https:// and the session cookie is only ever sent over HTTPS.
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        secure: true
+        http-only: true
+        same-site: lax
+  error:
+    include-stacktrace: never
+    include-message: never
+  tomcat:
+    threads:
+      max: 20
+      min-spare: 2
+
+spring:
+  datasource:
+    hikari:
+      # A handful of reviewers; and no idle connections, so the free database can pause.
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 60000
+      # A paused database takes a moment to wake up on the first query.
+      connection-timeout: 30000
+  thymeleaf:
+    cache: true
+
+forms:
+  demo:
+    seed: true
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.orm.deprecation: WARN
