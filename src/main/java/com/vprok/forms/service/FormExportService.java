@@ -7,6 +7,7 @@ import com.vprok.forms.entity.ElementListOption;
 import com.vprok.forms.repository.ElementAttributeValueRepository;
 import com.vprok.forms.repository.ElementListOptionRepository;
 import com.vprok.forms.repository.ElementRepository;
+import com.vprok.forms.web.dto.export.ExportLayout;
 import com.vprok.forms.web.dto.export.ExportNode;
 import com.vprok.forms.web.dto.export.ExportOption;
 import com.vprok.forms.web.error.ResourceNotFoundException;
@@ -103,6 +104,7 @@ public class FormExportService {
                 element.getCode(),
                 element.getLabel(),
                 element.getElementType(),
+                ExportLayout.from(element.getGridPosition()),
                 attributesByElementId.getOrDefault(element.getId(), Map.of()),
                 optionsByElementId.getOrDefault(element.getId(), List.of()),
                 children);

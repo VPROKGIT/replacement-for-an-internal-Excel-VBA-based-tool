@@ -3,10 +3,12 @@ package com.vprok.forms.web.ui;
 import com.vprok.forms.entity.AttributeDefinition;
 import com.vprok.forms.entity.Element;
 import com.vprok.forms.entity.ElementAttributeValue;
+import com.vprok.forms.entity.GridPosition;
 import com.vprok.forms.service.AttributeDefinitionService;
 import com.vprok.forms.service.ElementAttributeValueService;
 import com.vprok.forms.service.ElementListOptionService;
 import com.vprok.forms.service.ElementService;
+import com.vprok.forms.service.GridLayoutService;
 import com.vprok.forms.web.dto.ElementResponse;
 import com.vprok.forms.web.dto.ListOptionResponse;
 import com.vprok.forms.web.error.DataIntegrityMessage;
@@ -58,16 +60,19 @@ public class StructureUiController {
     private final AttributeDefinitionService attributeDefinitionService;
     private final ElementAttributeValueService elementAttributeValueService;
     private final ElementListOptionService elementListOptionService;
+    private final GridLayoutService gridLayoutService;
 
     public StructureUiController(
             ElementService elementService,
             AttributeDefinitionService attributeDefinitionService,
             ElementAttributeValueService elementAttributeValueService,
-            ElementListOptionService elementListOptionService) {
+            ElementListOptionService elementListOptionService,
+            GridLayoutService gridLayoutService) {
         this.elementService = elementService;
         this.attributeDefinitionService = attributeDefinitionService;
         this.elementAttributeValueService = elementAttributeValueService;
         this.elementListOptionService = elementListOptionService;
+        this.gridLayoutService = gridLayoutService;
     }
 
     // --- page list --------------------------------------------------------------------------
@@ -126,7 +131,7 @@ public class StructureUiController {
             return "redirect:" + canonical;
         }
         populateEditorFrame(model, elementService.getActiveOrThrow(pageId), sectionId, null);
-        model.addAttribute("sectionTree", buildTree(section));
+        model.addAttribute("sectionTree", buildTree(section, false));
         return "page-detail";
     }
 
@@ -150,8 +155,14 @@ public class StructureUiController {
             return "redirect:" + canonical;
         }
         populateEditorFrame(model, elementService.getActiveOrThrow(pageId), sectionId, elementId);
-        model.addAttribute("sectionTree", buildTree(elementService.getActiveOrThrow(sectionId)));
+        model.addAttribute("sectionTree", buildTree(elementService.getActiveOrThrow(sectionId), false));
         model.addAttribute("detail", ElementResponse.from(element));
+        // A child of a grid: the inspector offers its cell, bounded by the grid's width.
+        GridPosition layout = element.getGridPosition();
+        model.addAttribute("detailLayout", layout);
+        if (layout != null) {
+            model.addAttribute("detailGridColumns", gridLayoutService.columnCount(element.getParentElement().getId()));
+        }
         model.addAttribute("detailTypeLabel", ElementTreeNode.typeLabel(element.getElementType()));
         model.addAttribute("rows", attributeRows(element));
         boolean hasListOptions = "FIELD_LIST".equals(element.getElementType());
@@ -181,7 +192,8 @@ public class StructureUiController {
 
     /**
      * A new section opens in the middle pane; anything else opens in the inspector, ready for its
-     * attributes. A rejected add returns to what was on screen, with the error.
+     * attributes. A rejected add returns to what was on screen, with the error. {@code row} and
+     * {@code column} come from an empty cell of a grid (MATRIX) and put the new child there.
      */
     @PostMapping("/elements/{parentId}/children")
     public String createChild(
@@ -189,13 +201,16 @@ public class StructureUiController {
             @RequestParam String elementType,
             @RequestParam String code,
             @RequestParam String label,
+            @RequestParam(required = false) Integer row,
+            @RequestParam(required = false) Integer column,
             @RequestParam(required = false) Long section,
             @RequestParam(required = false) Long selected,
             RedirectAttributes redirectAttributes) {
         Element parent = elementService.getActiveOrThrow(parentId);
         String failureUrl = backTo(selected, section, () -> sectionViewUrl(parent));
+        GridPosition cell = row != null && column != null ? GridPosition.cell(row, column) : null;
         return tryThenRedirect(redirectAttributes, failureUrl, () -> {
-            Element created = elementService.create(parentId, elementType, code, label, null);
+            Element created = elementService.create(parentId, elementType, code, label, null, cell);
             return PAGE_TYPE.equals(parent.getElementType())
                     ? sectionUrl(parentId, created.getId())
                     : detailViewUrl(created) + anchor(created);
@@ -253,6 +268,26 @@ public class StructureUiController {
             @RequestParam(required = false) Long selected,
             RedirectAttributes redirectAttributes) {
         return moveWithinSiblings(id, 1, section, selected, redirectAttributes);
+    }
+
+    /**
+     * Moves and/or resizes a child of a grid (MATRIX): from the inspector's position form, or from
+     * a drag and drop in the middle pane, which posts the same form.
+     */
+    @PostMapping("/elements/{id}/position")
+    public String position(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer row,
+            @RequestParam(required = false) Integer column,
+            @RequestParam(required = false) Integer rowSpan,
+            @RequestParam(required = false) Integer columnSpan,
+            @RequestParam(required = false) Long section,
+            @RequestParam(required = false) Long selected,
+            RedirectAttributes redirectAttributes) {
+        Element element = elementService.getActiveOrThrow(id);
+        String redirectUrl = backTo(selected, section, () -> sectionViewUrl(element)) + anchor(element);
+        return tryOrRedirect(redirectAttributes, redirectUrl,
+                () -> elementService.place(id, new GridPosition(row, column, rowSpan, columnSpan)));
     }
 
     // --- detail-pane actions ----------------------------------------------------------------
@@ -376,10 +411,15 @@ public class StructureUiController {
                 .toList();
     }
 
-    private ElementTreeNode buildTree(Element element) {
-        List<ElementTreeNode> children = elementService.getChildren(element.getId()).stream().map(this::buildTree).toList();
+    private ElementTreeNode buildTree(Element element, boolean inGrid) {
+        boolean isGrid = gridLayoutService.isGridType(element.getElementType());
+        List<Element> childElements = elementService.getChildren(element.getId());
+        List<ElementTreeNode> children = childElements.stream().map(child -> buildTree(child, isGrid)).toList();
         List<String> allowedChildTypes = elementService.getAllowedChildTypes(element.getElementType());
-        return new ElementTreeNode(ElementResponse.from(element), children, allowedChildTypes);
+        GridView grid = isGrid
+                ? GridView.of(gridLayoutService.columnCount(element.getId()), childElements.stream().map(Element::getGridPosition).toList())
+                : null;
+        return new ElementTreeNode(ElementResponse.from(element), children, allowedChildTypes, inGrid, grid);
     }
 
     private static String sectionUrl(Long pageId, Long sectionId) {

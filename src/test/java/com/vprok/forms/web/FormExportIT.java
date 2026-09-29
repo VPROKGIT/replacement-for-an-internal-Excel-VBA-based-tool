@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.vprok.forms.entity.Element;
+import com.vprok.forms.entity.GridPosition;
 import com.vprok.forms.entity.ElementListOption;
 import com.vprok.forms.service.ElementAttributeValueService;
 import com.vprok.forms.service.ElementListOptionService;
@@ -348,6 +349,77 @@ class FormExportIT {
                 .formatted(page.getId(), section.getId(), full.getId(), publicVersion.getId());
 
         String actual = mockMvc.perform(get("/api/export/pages/by-code/{code}", "DOC_EXPORT_PAGE"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JSONAssert.assertEquals(expected, actual, JSONCompareMode.STRICT);
+    }
+
+    @Test
+    void exportsAMatrixWithItsColumnCountAndEachFieldsLayout() throws Exception {
+        // Mirrors the MATRIX worked example in docs/json-export-schema.md, asserted STRICT.
+        Element page = elementService.create(null, "PAGE", "MATRIX_EXPORT_PAGE", "Matrix Export Page", null);
+        Element section = elementService.create(page.getId(), "SECTION", "MX_SEC", "Contact", null);
+        Element matrix = elementService.create(section.getId(), "MATRIX", "CONTACT_GRID", "Contact grid", null);
+        elementAttributeValueService.setValue(matrix.getId(), "COLUMN_COUNT", "3");
+        // Created out of reading order on purpose: the export lists them row by row, left to right.
+        Element remarks = elementService.create(
+                matrix.getId(), "FIELD_TEXTAREA", "REMARKS", "Remarks", null, new GridPosition(2, 1, 2, 3));
+        Element email = elementService.create(matrix.getId(), "FIELD_TEXT", "EMAIL", "Email", null, GridPosition.cell(1, 1));
+        Element newsletter = elementService.create(
+                matrix.getId(), "FIELD_BOOLEAN", "NEWSLETTER", "Newsletter", null, GridPosition.cell(1, 3));
+
+        String expected = """
+                {
+                  "id": %d,
+                  "code": "MATRIX_EXPORT_PAGE",
+                  "label": "Matrix Export Page",
+                  "type": "PAGE",
+                  "children": [
+                    {
+                      "id": %d,
+                      "code": "MX_SEC",
+                      "label": "Contact",
+                      "type": "SECTION",
+                      "children": [
+                        {
+                          "id": %d,
+                          "code": "CONTACT_GRID",
+                          "label": "Contact grid",
+                          "type": "MATRIX",
+                          "attributes": { "columnCount": 3 },
+                          "children": [
+                            {
+                              "id": %d,
+                              "code": "EMAIL",
+                              "label": "Email",
+                              "type": "FIELD_TEXT",
+                              "layout": { "row": 1, "column": 1, "rowSpan": 1, "columnSpan": 1 }
+                            },
+                            {
+                              "id": %d,
+                              "code": "NEWSLETTER",
+                              "label": "Newsletter",
+                              "type": "FIELD_BOOLEAN",
+                              "layout": { "row": 1, "column": 3, "rowSpan": 1, "columnSpan": 1 }
+                            },
+                            {
+                              "id": %d,
+                              "code": "REMARKS",
+                              "label": "Remarks",
+                              "type": "FIELD_TEXTAREA",
+                              "layout": { "row": 2, "column": 1, "rowSpan": 2, "columnSpan": 3 }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """
+                .formatted(page.getId(), section.getId(), matrix.getId(), email.getId(), newsletter.getId(), remarks.getId());
+
+        String actual = mockMvc.perform(get("/api/export/pages/by-code/{code}", "MATRIX_EXPORT_PAGE"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 

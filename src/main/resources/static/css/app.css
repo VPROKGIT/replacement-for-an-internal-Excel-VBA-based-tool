@@ -640,3 +640,105 @@ details.add[open] > summary {
 .option-list .inline-form {
     margin: 0;
 }
+
+/* --- Grid containers (MATRIX, FORMS-20) --------------------------------------------------- */
+
+.grid-size {
+    font-size: 0.8rem;
+}
+
+.grid {
+    display: grid;
+    gap: 0.35rem;
+    /* Every row the height of a two-line cell, so a field spanning two rows looks twice as tall. */
+    grid-auto-rows: minmax(3.2rem, auto);
+    margin-top: 0.4rem;
+}
+
+.grid-item {
+    min-width: 0;
+    display: flex;
+    cursor: grab;
+}
+
+.grid-item.dragging {
+    opacity: 0.45;
+}
+
+/* A field in a grid fills its cell, however many rows and columns that covers. */
+.grid-item > .field-row {
+    flex: 1;
+    min-width: 0;
+    margin-top: 0;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    row-gap: 0.1rem;
+    padding-top: 0.25rem;
+}
+
+/* Cells can be narrow (up to 6 columns, beside the inspector): the label gets its own line
+   instead of being cut off, with type, code and delete on the line below. */
+.grid-item > .field-row .field-label {
+    flex: 1 1 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.grid-empty {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+    min-width: 0;
+}
+
+.grid-empty details.add > summary {
+    border-color: transparent;
+    padding: 0.1rem 0.4rem;
+}
+
+/* An empty cell's add form opens over the grid rather than squeezing into the cell. */
+.grid-empty details.add[open] > .add-form {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 5;
+    width: 18rem;
+    padding: 0.5rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.grid-empty.drop-target,
+.grid.drop-target {
+    background: #dcfce7;
+    border-color: #22c55e;
+}
+
+.position-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem 0.6rem;
+    align-items: end;
+}
+
+.position-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.position-form input {
+    width: 100%;
+}
+
+.position-form button {
+    grid-column: 1 / -1;
+    justify-self: start;
+}

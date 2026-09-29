@@ -1,5 +1,6 @@
 package com.vprok.forms.web;
 
+import com.vprok.forms.entity.GridPosition;
 import com.vprok.forms.service.ElementService;
 import com.vprok.forms.web.dto.ElementCreateRequest;
 import com.vprok.forms.web.dto.ElementMoveRequest;
@@ -39,7 +40,8 @@ public class ElementController {
     @ResponseStatus(HttpStatus.CREATED)
     public ElementResponse create(@Valid @RequestBody ElementCreateRequest request) {
         return ElementResponse.from(elementService.create(
-                request.parentElementId(), request.elementType(), request.code(), request.label(), request.displayOrder()));
+                request.parentElementId(), request.elementType(), request.code(), request.label(), request.displayOrder(),
+                request.layout()));
     }
 
     @GetMapping("/elements/{id}")
@@ -60,6 +62,12 @@ public class ElementController {
     @PatchMapping("/elements/{id}/move")
     public ElementResponse move(@PathVariable Long id, @Valid @RequestBody ElementMoveRequest request) {
         return ElementResponse.from(elementService.move(id, request.newParentElementId()));
+    }
+
+    /** Moves a child of a grid (MATRIX) to another cell and/or resizes it. */
+    @PutMapping("/elements/{id}/layout")
+    public ElementResponse place(@PathVariable Long id, @RequestBody GridPosition layout) {
+        return ElementResponse.from(elementService.place(id, layout));
     }
 
     @PatchMapping("/elements/{id}/children/reorder")

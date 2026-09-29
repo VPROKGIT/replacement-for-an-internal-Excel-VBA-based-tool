@@ -59,6 +59,20 @@ public class Element {
     @Column(name = "is_template", nullable = false)
     private boolean template = false;
 
+    // The cell this element occupies when its parent is a grid (MATRIX, FORMS-20); all NULL
+    // otherwise. Read and written as one GridPosition - never set the parts separately.
+    @Column(name = "grid_row")
+    private Integer gridRow;
+
+    @Column(name = "grid_column")
+    private Integer gridColumn;
+
+    @Column(name = "grid_row_span")
+    private Integer gridRowSpan;
+
+    @Column(name = "grid_column_span")
+    private Integer gridColumnSpan;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -150,6 +164,19 @@ public class Element {
 
     public void setTemplate(boolean template) {
         this.template = template;
+    }
+
+    /** The element's cell in its parent grid, or null when its parent is not a grid. */
+    public GridPosition getGridPosition() {
+        return gridRow == null ? null : new GridPosition(gridRow, gridColumn, gridRowSpan, gridColumnSpan);
+    }
+
+    /** Sets all four cell columns together; null clears them. */
+    public void setGridPosition(GridPosition position) {
+        this.gridRow = position == null ? null : position.row();
+        this.gridColumn = position == null ? null : position.column();
+        this.gridRowSpan = position == null ? null : position.rowSpan();
+        this.gridColumnSpan = position == null ? null : position.columnSpan();
     }
 
     public Instant getCreatedAt() {

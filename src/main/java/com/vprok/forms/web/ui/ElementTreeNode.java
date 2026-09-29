@@ -14,8 +14,16 @@ import java.util.Locale;
  * a node is drawn as a box when the hierarchy rules let it hold children, and its add buttons are
  * its allowed child types, with all {@code FIELD_*} types behind one "Field" button (the naming
  * convention the export contract already relies on) and every other type on its own button.
+ *
+ * <p>{@code grid} is set when this node is a grid container (MATRIX), and {@code inGrid} when its
+ * parent is one: a grid child's place is its cell, so it gets no move-up/move-down buttons.
  */
-public record ElementTreeNode(ElementResponse element, List<ElementTreeNode> children, List<String> allowedChildTypes) {
+public record ElementTreeNode(
+        ElementResponse element,
+        List<ElementTreeNode> children,
+        List<String> allowedChildTypes,
+        boolean inGrid,
+        GridView grid) {
 
     private static final String FIELD_PREFIX = "FIELD_";
 

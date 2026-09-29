@@ -35,7 +35,8 @@ regardless of whether it is the page, a section, a subsection, or a field:
 | `id`         | number            | yes             | Database id. Informational — build against `code`, not this.        |
 | `code`       | string            | yes             | Stable machine key, unique within the page.                         |
 | `label`      | string            | yes             | Human-readable display name.                                        |
-| `type`       | string            | yes             | `PAGE`, `SECTION`, `SUBSECTION`, `MAP`, or one of the `FIELD_*` types. |
+| `type`       | string            | yes             | `PAGE`, `SECTION`, `SUBSECTION`, `MAP`, `MATRIX`, or one of the `FIELD_*` types. |
+| `layout`     | object            | no              | Cell and size in the grid. Only on a child of a `MATRIX`.            |
 | `attributes` | object            | no              | Resolved attribute values, keyed by camelCase attribute code.       |
 | `options`    | array of objects  | no              | Selectable options. Only on `FIELD_LIST` elements.                  |
 | `children`   | array of nodes    | no              | Child elements, in display order.                                   |
@@ -53,7 +54,7 @@ recursive `children` array handles every current and future arrangement, and con
 render it with a single recursive function.
 
 Branch on `type` to decide how to render a node. Treat any `type` starting with `FIELD_` as a
-leaf input; `PAGE`, `SECTION`, `SUBSECTION`, and `MAP` are containers.
+leaf input; `PAGE`, `SECTION`, `SUBSECTION`, `MAP`, and `MATRIX` are containers.
 
 A `SUBSECTION` may contain further `SUBSECTION`s, to any depth, so render subsections
 recursively rather than assuming one level under a section.
@@ -78,10 +79,77 @@ There is no separate export path for maps: the node above is the whole contract.
 already recurses through `children` and branches on `type` needs no new code beyond deciding how
 to lay a map's fields out visually.
 
+### `MATRIX`: fields laid out on a grid
+
+A `MATRIX` is a layout grid: it tells you **where** each of its fields goes, so the form can be
+built with the same arrangement the backend developer designed. It has no value of its own and no
+row or column headings — it is purely layout.
+
+- Its width is the `columnCount` attribute: an integer from 1 to 6, always present on a `MATRIX`.
+- Each of its children carries a `layout` object:
+
+  | Key          | Type   | Meaning                                                |
+  |--------------|--------|--------------------------------------------------------|
+  | `row`        | number | Top row the field occupies, starting at 1.             |
+  | `column`     | number | Left column the field occupies, starting at 1.         |
+  | `rowSpan`    | number | How many rows the field covers (1 or more).            |
+  | `columnSpan` | number | How many columns the field covers (1 or more).         |
+
+- Guarantees: every child of a `MATRIX` has a `layout`, and nothing else ever does. Fields never
+  overlap (spans included) and never run past `columnCount`. Each cell holds at most one field.
+- **Empty cells are meaningful** — a gap the author left on purpose. Render them as empty space;
+  don't pack the fields together.
+- There is no row count in the export: the grid is as tall as the lowest `row + rowSpan - 1`.
+- `children` are listed in reading order (row by row, left to right), so a consumer that ignores
+  `layout` still gets a sensible order — for a narrow screen, say.
+- A `MATRIX` sits under a `SECTION` or a `SUBSECTION` and contains fields only (any `FIELD_*`
+  type) — never a `MAP`, `SUBSECTION` or another `MATRIX`.
+
+`layout` maps directly onto CSS grid: `grid-row: row / span rowSpan; grid-column: column / span
+columnSpan` inside a container with `grid-template-columns: repeat(columnCount, 1fr)`.
+
+Worked example — three columns; `REMARKS` is a text area spanning the full width and two rows,
+and the middle cell of row 1 is deliberately empty:
+
+```json
+{
+  "id": 3,
+  "code": "CONTACT_GRID",
+  "label": "Contact grid",
+  "type": "MATRIX",
+  "attributes": { "columnCount": 3 },
+  "children": [
+    {
+      "id": 5,
+      "code": "EMAIL",
+      "label": "Email",
+      "type": "FIELD_TEXT",
+      "layout": { "row": 1, "column": 1, "rowSpan": 1, "columnSpan": 1 }
+    },
+    {
+      "id": 6,
+      "code": "NEWSLETTER",
+      "label": "Newsletter",
+      "type": "FIELD_BOOLEAN",
+      "layout": { "row": 1, "column": 3, "rowSpan": 1, "columnSpan": 1 }
+    },
+    {
+      "id": 4,
+      "code": "REMARKS",
+      "label": "Remarks",
+      "type": "FIELD_TEXTAREA",
+      "layout": { "row": 2, "column": 1, "rowSpan": 2, "columnSpan": 3 }
+    }
+  ]
+}
+```
+
+This `MATRIX` node (inside a page and section) is asserted byte-for-byte (STRICT) in `FormExportIT`.
+
 ## Conventions
 
 **Absent means empty.** `attributes`, `options`, and `children` are omitted entirely when they
-would be empty, rather than emitted as `{}` / `[]`. A missing key means "none" — never
+would be empty, rather than emitted as `{}` / `[]`; `layout` is omitted outside a `MATRIX`. A missing key means "none" — never
 "unknown". Treat a missing `children` as `[]` and a missing `attributes` as `{}`.
 
 **Unset attributes are omitted, not defaulted.** If an attribute has no value for an element, its
@@ -110,7 +178,7 @@ raw `attribute_definition` ids that a consumer would have to resolve separately.
 
 **Ordering is stable and meaningful.** `children` and `options` are ordered by their
 `display_order`, which is the order authors arranged them in and the order they should render
-in. Keys within `attributes` are sorted alphabetically, so a given structure always serialises
+in. (Inside a `MATRIX` that order is the grid's reading order, kept in step with `layout`.) Keys within `attributes` are sorted alphabetically, so a given structure always serialises
 byte-identically and diffs cleanly.
 
 **Deleted content never appears.** Elements are soft-deleted, and deleting one cascades to its

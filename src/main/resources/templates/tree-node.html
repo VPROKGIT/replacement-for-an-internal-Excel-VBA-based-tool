@@ -3,12 +3,13 @@
 <body>
 <!--
     The middle pane's nested boxes (FORMS-18). A node that the hierarchy rules let hold children is
-    a bordered box; anything else is a one-line field row. Nothing here names a type: a future
+    a bordered box; anything else is a one-line field row. A grid container (MATRIX, FORMS-20) lays
+    its children out on a real grid instead of a list. Nothing here names a type: a future
     container type gets its box and its own add button from seed data alone.
 
     Fragments read the page editor's model (page, selectedSectionId, selectedElementId), which
     they share. Recursion: th:each and th:replace never sit on the same tag - fragment inclusion
-    runs before iteration, so the loop variable would still be unbound.
+    runs before iteration (and before th:if), so the loop variable would still be unbound.
 -->
 
 <!-- A container's contents: its children, then one add button per allowed child type. -->
@@ -20,6 +21,33 @@
     <th:block th:replace="~{tree-node :: addBar(${node})}"></th:block>
 </th:block>
 
+<!--
+    A grid container's contents: each child placed on its cell (spanning rows/columns), and an add
+    button in every empty cell, including one extra empty row. Children can be dragged to another
+    cell (js/editor.js); without script, their position is set in the inspector.
+-->
+<th:block th:fragment="grid(node)">
+    <div class="grid"
+         th:attr="data-grid-id=${node.element.id}"
+         th:style="'grid-template-columns: repeat(' + ${node.grid.columnCount} + ', minmax(0, 1fr));'">
+        <th:block th:each="child : ${node.children}">
+            <div class="grid-item" draggable="true"
+                 th:attr="data-element-id=${child.element.id},data-row-span=${child.element.layout.rowSpan},data-column-span=${child.element.layout.columnSpan}"
+                 th:style="'grid-row: ' + ${child.element.layout.row} + ' / span ' + ${child.element.layout.rowSpan}
+                           + '; grid-column: ' + ${child.element.layout.column} + ' / span ' + ${child.element.layout.columnSpan} + ';'">
+                <th:block th:replace="~{tree-node :: node(${child})}"></th:block>
+            </div>
+        </th:block>
+        <div th:each="cell : ${node.grid.emptyCells}" class="grid-empty"
+             th:attr="data-row=${cell.row},data-column=${cell.column}"
+             th:style="'grid-row: ' + ${cell.row} + '; grid-column: ' + ${cell.column} + ';'">
+            <th:block th:each="group : ${node.addGroups}">
+                <th:block th:replace="~{tree-node :: addDetails(${node}, ${group}, ${cell})}"></th:block>
+            </th:block>
+        </div>
+    </div>
+</th:block>
+
 <th:block th:fragment="node(node)">
     <div th:if="${node.container}" class="box" th:id="'el-' + ${node.element.id}"
          th:classappend="${node.element.id == selectedElementId} ? 'is-selected'">
@@ -29,14 +57,20 @@
                th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${node.element.id})}"
                th:text="${node.element.label}">Label</a>
             <span class="node-code" th:text="${node.element.code}">CODE</span>
+            <span th:if="${node.grid}" class="muted grid-size" th:text="${node.grid.columnCount} + ' columns'">2 columns</span>
             <th:block th:replace="~{tree-node :: actions(${node})}"></th:block>
         </div>
-        <th:block th:replace="~{tree-node :: children(${node})}"></th:block>
+        <th:block th:if="${node.grid == null}">
+            <th:block th:replace="~{tree-node :: children(${node})}"></th:block>
+        </th:block>
+        <th:block th:if="${node.grid != null}">
+            <th:block th:replace="~{tree-node :: grid(${node})}"></th:block>
+        </th:block>
     </div>
 
     <div th:unless="${node.container}" class="field-row" th:id="'el-' + ${node.element.id}"
          th:classappend="${node.element.id == selectedElementId} ? 'is-selected'">
-        <a class="field-label"
+        <a class="field-label" draggable="false"
            th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${node.element.id})}"
            th:text="${node.element.label}">Label</a>
         <span class="node-type" th:text="${node.typeLabel}">Text</span>
@@ -45,14 +79,15 @@
     </div>
 </th:block>
 
-<!-- Move up / move down / delete. Rename and attributes live in the inspector. -->
+<!-- Move up / move down / delete. Rename and attributes live in the inspector; a grid child's
+     place is its cell, so it has no move-up/move-down. -->
 <th:block th:fragment="actions(node)">
     <span class="row-actions">
-        <form th:action="@{/ui/elements/{id}/move-up(id=${node.element.id})}" method="post" class="inline-form">
+        <form th:unless="${node.inGrid}" th:action="@{/ui/elements/{id}/move-up(id=${node.element.id})}" method="post" class="inline-form">
             <th:block th:replace="~{fragments :: returnTo}"></th:block>
             <button type="submit" class="icon-button" title="Move up" aria-label="Move up">&uarr;</button>
         </form>
-        <form th:action="@{/ui/elements/{id}/move-down(id=${node.element.id})}" method="post" class="inline-form">
+        <form th:unless="${node.inGrid}" th:action="@{/ui/elements/{id}/move-down(id=${node.element.id})}" method="post" class="inline-form">
             <th:block th:replace="~{fragments :: returnTo}"></th:block>
             <button type="submit" class="icon-button" title="Move down" aria-label="Move down">&darr;</button>
         </form>
@@ -68,20 +103,29 @@
 <!-- One button per allowed child type (all field types share one); each opens its form in place. -->
 <th:block th:fragment="addBar(node)">
     <div class="add-bar" th:if="${node.container}">
-        <details class="add" th:each="group : ${node.addGroups}">
-            <summary th:text="'+ ' + ${group.label}">+ Field</summary>
-            <form th:action="@{/ui/elements/{id}/children(id=${node.element.id})}" method="post" class="add-form">
-                <th:block th:replace="~{fragments :: returnTo}"></th:block>
-                <select th:if="${#lists.size(group.types) > 1}" name="elementType" aria-label="Type">
-                    <option th:each="t : ${group.types}" th:value="${t.value}" th:text="${t.label}">Text</option>
-                </select>
-                <input th:if="${#lists.size(group.types) == 1}" type="hidden" name="elementType" th:value="${group.types[0].value}"/>
-                <input type="text" name="label" placeholder="Label" required="required" aria-label="Label"/>
-                <input type="text" name="code" placeholder="CODE" required="required" aria-label="Code"/>
-                <button type="submit">Add</button>
-            </form>
-        </details>
+        <th:block th:each="group : ${node.addGroups}">
+            <th:block th:replace="~{tree-node :: addDetails(${node}, ${group}, ${null})}"></th:block>
+        </th:block>
     </div>
+</th:block>
+
+<!-- One add button and its form. In a grid, cell is the empty cell it adds into; otherwise null. -->
+<th:block th:fragment="addDetails(node, group, cell)">
+    <details class="add">
+        <summary th:text="'+ ' + ${group.label}">+ Field</summary>
+        <form th:action="@{/ui/elements/{id}/children(id=${node.element.id})}" method="post" class="add-form">
+            <th:block th:replace="~{fragments :: returnTo}"></th:block>
+            <input th:if="${cell}" type="hidden" name="row" th:value="${cell.row}"/>
+            <input th:if="${cell}" type="hidden" name="column" th:value="${cell.column}"/>
+            <select th:if="${#lists.size(group.types) > 1}" name="elementType" aria-label="Type">
+                <option th:each="t : ${group.types}" th:value="${t.value}" th:text="${t.label}">Text</option>
+            </select>
+            <input th:if="${#lists.size(group.types) == 1}" type="hidden" name="elementType" th:value="${group.types[0].value}"/>
+            <input type="text" name="label" placeholder="Label" required="required" aria-label="Label"/>
+            <input type="text" name="code" placeholder="CODE" required="required" aria-label="Code"/>
+            <button type="submit">Add</button>
+        </form>
+    </details>
 </th:block>
 </body>
 </html>

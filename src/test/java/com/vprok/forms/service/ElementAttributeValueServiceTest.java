@@ -46,7 +46,8 @@ class ElementAttributeValueServiceTest {
         attributeApplicabilityRepository = mock(AttributeApplicabilityRepository.class);
         elementAttributeValueRepository = mock(ElementAttributeValueRepository.class);
         service = new ElementAttributeValueService(
-                elementRepository, attributeDefinitionRepository, attributeApplicabilityRepository, elementAttributeValueRepository);
+                elementRepository, attributeDefinitionRepository, attributeApplicabilityRepository, elementAttributeValueRepository,
+                mock(GridLayoutService.class));
 
         element = mock(Element.class);
         when(element.getId()).thenReturn(1L);

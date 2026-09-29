@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vprok.forms.entity.GridPosition;
 import com.vprok.forms.service.MapTemplateService;
 import com.vprok.forms.web.dto.AttributeValueRequest;
 import com.vprok.forms.web.dto.AttributeValueResponse;
@@ -62,7 +63,7 @@ class StructureApiIT {
     private MapTemplateService mapTemplateService;
 
     private Long createElement(Long parentId, String elementType, String code, String label) throws Exception {
-        ElementCreateRequest request = new ElementCreateRequest(parentId, elementType, code, label, null);
+        ElementCreateRequest request = new ElementCreateRequest(parentId, elementType, code, label, null, null);
         MvcResult result = mockMvc.perform(post("/api/elements")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -91,7 +92,7 @@ class StructureApiIT {
     void rejectsInvalidParentChildCombination() throws Exception {
         Long pageId = createElement(null, "PAGE", "API_PAGE_2", "API Page 2");
 
-        ElementCreateRequest badRequest = new ElementCreateRequest(pageId, "FIELD_TEXT", "F1", "Bad field", null);
+        ElementCreateRequest badRequest = new ElementCreateRequest(pageId, "FIELD_TEXT", "F1", "Bad field", null, null);
         mockMvc.perform(post("/api/elements")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(badRequest)))
@@ -276,5 +277,46 @@ class StructureApiIT {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.detail", containsString("already exists")));
+    }
+
+    @Test
+    void matrixChildrenAreCreatedAndMovedByCellThroughTheApi() throws Exception {
+        Long pageId = createElement(null, "PAGE", "API_PAGE_MATRIX", "API Matrix page");
+        Long sectionId = createElement(pageId, "SECTION", "API_MX_SEC", "Section");
+        Long matrixId = createElement(sectionId, "MATRIX", "API_MX_GRID", "Grid");
+
+        // Created in a given cell, and reported with it; outside a grid there is no layout at all.
+        ElementCreateRequest inCell = new ElementCreateRequest(
+                matrixId, "FIELD_TEXT", "API_MX_A", "A", null, new GridPosition(2, 2, 1, 1));
+        MvcResult created = mockMvc.perform(post("/api/elements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(inCell)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.layout.row").value(2))
+                .andExpect(jsonPath("$.layout.column").value(2))
+                .andReturn();
+        Long fieldId = objectMapper.readValue(created.getResponse().getContentAsString(), ElementResponse.class).id();
+        mockMvc.perform(get("/api/elements/{id}", sectionId))
+                .andExpect(jsonPath("$.layout").doesNotExist());
+
+        // Moved and widened; a move past the last column is a clean 400.
+        mockMvc.perform(put("/api/elements/{id}/layout", fieldId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"row\": 1, \"column\": 1, \"rowSpan\": 2, \"columnSpan\": 2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layout.rowSpan").value(2))
+                .andExpect(jsonPath("$.layout.columnSpan").value(2));
+        mockMvc.perform(put("/api/elements/{id}/layout", fieldId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"row\": 1, \"column\": 2, \"rowSpan\": 1, \"columnSpan\": 2}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail", containsString("past the last column")));
+
+        // Reordering a grid's children is refused: their position is their order.
+        mockMvc.perform(patch("/api/elements/{id}/children/reorder", matrixId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ReorderRequest(List.of(fieldId)))))
+                .andExpect(status().isBadRequest());
     }
 }
