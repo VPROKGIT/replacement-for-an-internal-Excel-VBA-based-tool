@@ -110,6 +110,13 @@ or via `mvnw spring-boot:run`:
 
 If you hit the same `IOException`/`SocketException` pair on startup, this is almost certainly it.
 
+## Deployment
+
+The app ships as one Docker image (`Dockerfile`, `prod` profile); all host settings are environment
+variables. The online review environment (Render + Neon, free tier), first-time setup, backups and
+moving host are described in [docs/deployment.md](docs/deployment.md); reviewers get
+[docs/review-guide.md](docs/review-guide.md).
+
 ## Running tests
 
 ```bash

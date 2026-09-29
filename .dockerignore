@@ -1,0 +1,9 @@
+# Only what the Dockerfile copies matters; keep the build context small and free of local state.
+target/
+.git/
+.idea/
+.vscode/
+.claude/
+*.iml
+*.log
+docs/
