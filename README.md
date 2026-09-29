@@ -65,15 +65,17 @@ who may sign in are one setting, `FORMS_SECURITY_USERS`, in the form
 - **Locally**, the `local` profile (`application-local.yml`) defines `dev` / `dev`. Never use that
   profile on a shared host; an environment variable overrides it anyway.
 - **On a host**, set `FORMS_SECURITY_USERS`. Without it the app refuses to start, rather than start
-  with nobody able to sign in. Plain-text passwords are refused; hash each one with BCrypt, e.g.
-  with Docker:
+  with nobody able to sign in. Plain-text passwords are refused; each must be a BCrypt hash. The
+  helper script asks for names and passwords and prints the finished value (Docker Desktop must be
+  running):
 
-  ```bash
-  docker run --rm httpd:2.4-alpine htpasswd -nbBC 10 alice 'her-password'
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts\new-reviewer-users.ps1
   ```
 
-  This prints `alice:$2y$10$...` — exactly one entry of the setting. Join entries with commas. Send
-  each person their own password; the hashes alone can't be turned back into passwords.
+  Each entry looks like `alice:$2y$10$...`; entries are joined with commas. Send each person their
+  own password; the hashes alone can't be turned back into passwords. See
+  [docs/deployment.md](docs/deployment.md) for doing it without the script.
 - **The REST API and the JSON export** (`/api/**`) take the same users via HTTP Basic, with no
   session and no CSRF token — e.g. `curl -u alice:her-password http://localhost:8080/api/pages`.
   Give a tool (such as the frontend's export job) its own entry rather than a person's password.
