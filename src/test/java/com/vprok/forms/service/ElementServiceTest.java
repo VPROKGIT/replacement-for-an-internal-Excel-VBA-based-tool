@@ -33,7 +33,7 @@ class ElementServiceTest {
     void setUp() {
         elementRepository = mock(ElementRepository.class);
         elementTypeRuleRepository = mock(ElementTypeRuleRepository.class);
-        service = new ElementService(elementRepository, elementTypeRuleRepository);
+        service = new ElementService(elementRepository, elementTypeRuleRepository, mock(GridLayoutService.class));
         when(elementRepository.save(any(Element.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 

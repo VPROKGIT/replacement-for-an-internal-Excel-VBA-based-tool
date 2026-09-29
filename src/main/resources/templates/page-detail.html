@@ -6,8 +6,9 @@
 <!--
     Page editor (FORMS-17, redesigned in FORMS-18). Three columns: sidebar (page + its sections),
     the selected section as nested boxes (sectionTree), and - when an element is selected - the
-    inspector (detail). Every state has its own URL; there is no client-side state. The only
-    script is the confirm() before a delete.
+    inspector (detail). Every state has its own URL; there is no client-side state. Script is
+    optional: the confirm() before a delete, and dragging grid (MATRIX) fields between cells
+    (js/editor.js), which posts the same form the inspector's position fields do.
 -->
 <main class="editor-shell">
     <div class="editor" th:classappend="${detail} ? 'has-inspector'">
@@ -135,6 +136,24 @@
                 <p class="node-code inspector-code" th:text="${detail.code}">CODE</p>
             </form>
 
+            <!-- A child of a grid (MATRIX): its cell and size. Dragging it in the middle pane posts the same form. -->
+            <th:block th:if="${detailLayout}">
+                <h3>Position in grid</h3>
+                <form th:action="@{/ui/elements/{id}/position(id=${detail.id})}" method="post" class="position-form">
+                    <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                    <label>Row
+                        <input type="number" name="row" min="1" required="required" th:value="${detailLayout.row}"/></label>
+                    <label>Column
+                        <input type="number" name="column" min="1" th:max="${detailGridColumns}" required="required" th:value="${detailLayout.column}"/></label>
+                    <label>Height (rows)
+                        <input type="number" name="rowSpan" min="1" required="required" th:value="${detailLayout.rowSpan}"/></label>
+                    <label>Width (columns)
+                        <input type="number" name="columnSpan" min="1" th:max="${detailGridColumns}" required="required" th:value="${detailLayout.columnSpan}"/></label>
+                    <button type="submit">Move</button>
+                </form>
+                <p class="muted attr-hint" th:text="'The grid has ' + ${detailGridColumns} + ' columns. You can also drag the field to another cell.'">hint</p>
+            </th:block>
+
             <h3>Attributes</h3>
             <div th:replace="~{attribute-editor :: form}"></div>
 
@@ -144,6 +163,16 @@
             </th:block>
         </aside>
     </div>
+
+    <!-- Posted by js/editor.js when a field is dropped on another cell of its grid. -->
+    <form id="grid-move-form" method="post" hidden="hidden" th:attr="data-action-prefix=@{/ui/elements/}">
+        <th:block th:replace="~{fragments :: returnTo}"></th:block>
+        <input type="hidden" name="row"/>
+        <input type="hidden" name="column"/>
+        <input type="hidden" name="rowSpan"/>
+        <input type="hidden" name="columnSpan"/>
+    </form>
 </main>
+<script th:src="@{/js/editor.js}" defer="defer"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.vprok.forms.entity.Element;
+import com.vprok.forms.entity.GridPosition;
 import com.vprok.forms.repository.ElementRepository;
 import com.vprok.forms.service.ElementAttributeValueService;
 import com.vprok.forms.service.ElementService;
@@ -378,5 +379,66 @@ class StructureUiIT {
                 .andExpect(content().string(not(containsString("Old template page"))));
         mockMvc.perform(get("/ui/templates")).andExpect(status().isNotFound());
         mockMvc.perform(get("/ui/pages")).andExpect(content().string(not(containsString("Old template page"))));
+    }
+
+    @Test
+    void aMatrixIsDrawnAsAGridWhoseCellsCanBeFilledAndRearranged() throws Exception {
+        Element page = elementService.create(null, "PAGE", "UI_MATRIX", "Matrix page", null);
+        Element section = elementService.create(page.getId(), "SECTION", "UI_MX_SEC", "Matrix section", null);
+        Element matrix = elementService.create(section.getId(), "MATRIX", "UI_MX_GRID", "Contact grid", null);
+        Element wide = elementService.create(matrix.getId(), "FIELD_TEXTAREA", "UI_MX_WIDE", "Remarks", null,
+                new GridPosition(1, 1, 1, 2));
+
+        // A real grid: two columns, the field placed across both, and an extra empty row with an
+        // add button per cell carrying that cell. Grid children have no move-up/move-down.
+        mockMvc.perform(get(sectionUrl(page, section)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("2 columns")))
+                .andExpect(content().string(containsString("grid-template-columns: repeat(2, minmax(0, 1fr));")))
+                .andExpect(content().string(containsString("grid-row: 1 / span 1; grid-column: 1 / span 2;")))
+                .andExpect(content().string(containsString("data-row=\"2\" data-column=\"2\"")))
+                .andExpect(content().string(containsString("name=\"row\" value=\"2\"")))
+                .andExpect(content().string(not(containsString("/ui/elements/" + wide.getId() + "/move-up"))));
+
+        // Adding into a chosen empty cell puts the field there and opens it in the inspector,
+        // which offers its position.
+        MvcResult added = mockMvc.perform(post("/ui/elements/{id}/children", matrix.getId())
+                        .param("elementType", "FIELD_TEXT")
+                        .param("code", "UI_MX_CELL")
+                        .param("label", "Cell field")
+                        .param("row", "2")
+                        .param("column", "2")
+                        .param("section", section.getId().toString()))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        Element cell = elementRepository.findByElementTypeAndCodeAndDeletedAtIsNull("FIELD_TEXT", "UI_MX_CELL").orElseThrow();
+        assertThat(cell.getGridPosition()).isEqualTo(GridPosition.cell(2, 2));
+        assertThat(added.getResponse().getRedirectedUrl()).isEqualTo(detailUrl(page, section, cell) + "#el-" + cell.getId());
+        mockMvc.perform(get(detailUrl(page, section, cell)))
+                .andExpect(content().string(containsString("Position in grid")))
+                .andExpect(content().string(containsString("The grid has 2 columns.")));
+
+        // The position form (and a drag and drop, which posts the same form) moves it; a taken
+        // space is refused with a banner and nothing changes.
+        mockMvc.perform(post("/ui/elements/{id}/position", cell.getId())
+                        .param("row", "3").param("column", "1").param("rowSpan", "2").param("columnSpan", "1")
+                        .param("section", section.getId().toString()))
+                .andExpect(redirectedUrl(sectionUrl(page, section) + "#el-" + cell.getId()));
+        assertThat(elementService.getActiveOrThrow(cell.getId()).getGridPosition()).isEqualTo(new GridPosition(3, 1, 2, 1));
+
+        MvcResult refused = mockMvc.perform(post("/ui/elements/{id}/position", cell.getId())
+                        .param("row", "1").param("column", "2").param("rowSpan", "1").param("columnSpan", "1")
+                        .param("section", section.getId().toString())
+                        .param("selected", cell.getId().toString()))
+                .andExpect(redirectedUrl(detailUrl(page, section, cell) + "#el-" + cell.getId()))
+                .andReturn();
+        mockMvc.perform(get(detailUrl(page, section, cell)).session(sessionOf(refused)))
+                .andExpect(content().string(containsString("That space is taken by Remarks (UI_MX_WIDE).")));
+        assertThat(elementService.getActiveOrThrow(cell.getId()).getGridPosition()).isEqualTo(new GridPosition(3, 1, 2, 1));
+
+        // The matrix's own settings include its column count.
+        mockMvc.perform(get(detailUrl(page, section, matrix)))
+                .andExpect(content().string(containsString("Columns")))
+                .andExpect(content().string(not(containsString("Position in grid"))));
     }
 }

@@ -2,6 +2,7 @@ package com.vprok.forms.service;
 
 import com.vprok.forms.entity.Element;
 import com.vprok.forms.entity.ElementTypeRule;
+import com.vprok.forms.entity.GridPosition;
 import com.vprok.forms.repository.ElementRepository;
 import com.vprok.forms.repository.ElementTypeRuleRepository;
 import com.vprok.forms.web.error.InvalidElementHierarchyException;
@@ -26,10 +27,15 @@ public class ElementService {
 
     private final ElementRepository elementRepository;
     private final ElementTypeRuleRepository elementTypeRuleRepository;
+    private final GridLayoutService gridLayoutService;
 
-    public ElementService(ElementRepository elementRepository, ElementTypeRuleRepository elementTypeRuleRepository) {
+    public ElementService(
+            ElementRepository elementRepository,
+            ElementTypeRuleRepository elementTypeRuleRepository,
+            GridLayoutService gridLayoutService) {
         this.elementRepository = elementRepository;
         this.elementTypeRuleRepository = elementTypeRuleRepository;
+        this.gridLayoutService = gridLayoutService;
     }
 
     /**
@@ -86,6 +92,17 @@ public class ElementService {
 
     @Transactional
     public Element create(Long parentElementId, String elementType, String code, String label, Integer displayOrder) {
+        return create(parentElementId, elementType, code, label, displayOrder, null);
+    }
+
+    /**
+     * Creates an element. Under a grid (MATRIX) it gets {@code position}, or the first free cell
+     * when that is null, and the grid keeps its children in reading order - so displayOrder is
+     * ignored there. Anywhere else a position is an error.
+     */
+    @Transactional
+    public Element create(
+            Long parentElementId, String elementType, String code, String label, Integer displayOrder, GridPosition position) {
         Element parent = null;
         Element page;
         if (parentElementId == null) {
@@ -99,9 +116,38 @@ public class ElementService {
             page = PAGE_TYPE.equals(parent.getElementType()) ? parent : parent.getPage();
         }
 
+        boolean inGrid = parent != null && gridLayoutService.isGridType(parent.getElementType());
+        if (position != null && !inGrid) {
+            throw new InvalidElementHierarchyException("A position only applies to an element inside a grid (MATRIX)");
+        }
+
         Element element = new Element(parent, page, elementType, code, label);
         element.setDisplayOrder(displayOrder != null ? displayOrder : nextDisplayOrder(parentElementId));
-        return elementRepository.save(element);
+        if (inGrid) {
+            element.setGridPosition(gridLayoutService.place(parent, position, null));
+        }
+        Element saved = elementRepository.save(element);
+        if (inGrid) {
+            gridLayoutService.resequence(parent.getId());
+        }
+        if (gridLayoutService.isGridType(elementType)) {
+            gridLayoutService.initialise(saved);
+        }
+        return saved;
+    }
+
+    /** Moves a grid child to another cell (and/or resizes it); the grid's rules decide whether it fits. */
+    @Transactional
+    public Element place(Long elementId, GridPosition position) {
+        Element element = getActiveOrThrow(elementId);
+        Element parent = element.getParentElement();
+        if (parent == null || !gridLayoutService.isGridType(parent.getElementType())) {
+            throw new InvalidElementHierarchyException("Only an element inside a grid (MATRIX) has a position");
+        }
+        element.setGridPosition(gridLayoutService.place(parent, position, element.getId()));
+        elementRepository.save(element);
+        gridLayoutService.resequence(parent.getId());
+        return element;
     }
 
     @Transactional
@@ -124,19 +170,35 @@ public class ElementService {
         }
 
         Element newPage = PAGE_TYPE.equals(newParent.getElementType()) ? newParent : newParent.getPage();
+        boolean sameParent = element.getParentElement() != null && element.getParentElement().getId().equals(newParent.getId());
         element.setParentElement(newParent);
+        // Into a grid: the first free cell. Out of one: no position. Within the same grid: unchanged.
+        boolean intoGrid = gridLayoutService.isGridType(newParent.getElementType());
+        if (!intoGrid) {
+            element.setGridPosition(null);
+        } else if (!sameParent) {
+            element.setGridPosition(gridLayoutService.place(newParent, null, element.getId()));
+        }
 
         List<Element> subtree = collectSubtree(element);
         for (Element e : subtree) {
             e.setPage(newPage);
         }
         elementRepository.saveAll(subtree);
+        if (intoGrid) {
+            gridLayoutService.resequence(newParent.getId());
+        }
         return element;
     }
 
     @Transactional
     public List<Element> reorderChildren(Long parentId, List<Long> orderedElementIds) {
-        getActiveOrThrow(parentId);
+        Element parent = getActiveOrThrow(parentId);
+        if (gridLayoutService.isGridType(parent.getElementType())) {
+            throw new InvalidElementHierarchyException(
+                    "The children of a %s are ordered by their position in the grid: move them to another cell instead"
+                            .formatted(parent.getElementType()));
+        }
         List<Element> children = elementRepository.findByParentElementIdAndDeletedAtIsNullOrderByDisplayOrderAsc(parentId);
         Set<Long> currentIds = children.stream().map(Element::getId).collect(Collectors.toSet());
         Set<Long> requestedIds = new HashSet<>(orderedElementIds);

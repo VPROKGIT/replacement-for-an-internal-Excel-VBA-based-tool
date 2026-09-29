@@ -29,16 +29,19 @@ public class ElementAttributeValueService {
     private final AttributeDefinitionRepository attributeDefinitionRepository;
     private final AttributeApplicabilityRepository attributeApplicabilityRepository;
     private final ElementAttributeValueRepository elementAttributeValueRepository;
+    private final GridLayoutService gridLayoutService;
 
     public ElementAttributeValueService(
             ElementRepository elementRepository,
             AttributeDefinitionRepository attributeDefinitionRepository,
             AttributeApplicabilityRepository attributeApplicabilityRepository,
-            ElementAttributeValueRepository elementAttributeValueRepository) {
+            ElementAttributeValueRepository elementAttributeValueRepository,
+            GridLayoutService gridLayoutService) {
         this.elementRepository = elementRepository;
         this.attributeDefinitionRepository = attributeDefinitionRepository;
         this.attributeApplicabilityRepository = attributeApplicabilityRepository;
         this.elementAttributeValueRepository = elementAttributeValueRepository;
+        this.gridLayoutService = gridLayoutService;
     }
 
     public List<ElementAttributeValue> list(Long elementId) {
@@ -50,15 +53,15 @@ public class ElementAttributeValueService {
     public ElementAttributeValue setValue(Long elementId, String attributeCode, String rawValue) {
         Element element = getActiveElementOrThrow(elementId);
         ElementAttributeValue saved = upsert(element, attributeCode, rawValue);
-        enforceConfidentialDocumentRule(elementId);
+        enforceCrossAttributeRules(element);
         return saved;
     }
 
     @Transactional
     public void deleteValue(Long elementId, String attributeCode) {
-        getActiveElementOrThrow(elementId);
+        Element element = getActiveElementOrThrow(elementId);
         remove(elementId, attributeCode);
-        enforceConfidentialDocumentRule(elementId);
+        enforceCrossAttributeRules(element);
     }
 
     /**
@@ -76,7 +79,7 @@ public class ElementAttributeValueService {
                 upsert(element, code, value);
             }
         });
-        enforceConfidentialDocumentRule(elementId);
+        enforceCrossAttributeRules(element);
     }
 
     private ElementAttributeValue upsert(Element element, String attributeCode, String rawValue) {
@@ -98,6 +101,12 @@ public class ElementAttributeValueService {
     private void remove(Long elementId, String attributeCode) {
         AttributeDefinition attributeDefinition = getAttributeDefinitionOrThrow(attributeCode);
         elementAttributeValueRepository.deleteByElementIdAndAttributeDefinitionId(elementId, attributeDefinition.getId());
+    }
+
+    /** Rules that span attributes (or reach beyond them), judged on the final state; a violation rolls the whole change back. */
+    private void enforceCrossAttributeRules(Element element) {
+        enforceConfidentialDocumentRule(element.getId());
+        gridLayoutService.requireValidColumnCount(element);
     }
 
     /**

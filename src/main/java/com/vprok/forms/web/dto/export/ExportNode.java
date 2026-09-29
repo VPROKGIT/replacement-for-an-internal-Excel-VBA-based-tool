@@ -12,7 +12,8 @@ import java.util.Map;
  * change. A fixed shape would re-introduce exactly the rigidity that table exists to avoid.
  *
  * <p>Empty collections are omitted entirely (NON_EMPTY): a missing {@code attributes},
- * {@code options} or {@code children} means "none", never "unknown".
+ * {@code options} or {@code children} means "none", never "unknown". Likewise {@code layout} is
+ * present only on a child of a grid container (MATRIX).
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record ExportNode(
@@ -20,6 +21,7 @@ public record ExportNode(
         String code,
         String label,
         String type,
+        ExportLayout layout,
         Map<String, Object> attributes,
         List<ExportOption> options,
         List<ExportNode> children) {

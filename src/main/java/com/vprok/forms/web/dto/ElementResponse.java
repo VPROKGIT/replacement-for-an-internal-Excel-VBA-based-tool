@@ -1,8 +1,10 @@
 package com.vprok.forms.web.dto;
 
 import com.vprok.forms.entity.Element;
+import com.vprok.forms.entity.GridPosition;
 import java.time.Instant;
 
+/** layout is the element's cell when its parent is a grid (MATRIX), null otherwise. */
 public record ElementResponse(
         Long id,
         Long parentElementId,
@@ -11,6 +13,7 @@ public record ElementResponse(
         String code,
         String label,
         Integer displayOrder,
+        GridPosition layout,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -23,6 +26,7 @@ public record ElementResponse(
                 element.getCode(),
                 element.getLabel(),
                 element.getDisplayOrder(),
+                element.getGridPosition(),
                 element.getCreatedAt(),
                 element.getUpdatedAt());
     }

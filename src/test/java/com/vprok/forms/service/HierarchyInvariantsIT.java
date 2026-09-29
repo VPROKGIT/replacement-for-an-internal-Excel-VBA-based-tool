@@ -202,13 +202,14 @@ class HierarchyInvariantsIT {
     // --- element_type_rule: exhaustive matrix -------------------------------------------------
 
     private static final List<String> ALL_ELEMENT_TYPES = List.of(
-            "PAGE", "SECTION", "SUBSECTION", "MAP",
+            "PAGE", "SECTION", "SUBSECTION", "MAP", "MATRIX",
             "FIELD_TEXT", "FIELD_TEXTAREA", "FIELD_NUMBER", "FIELD_DATE", "FIELD_BOOLEAN", "FIELD_LIST",
             "FIELD_DOCUMENT");
 
     /**
      * Exactly the pairs seeded across V2__seed_data.sql (14), V3__add_map_element_type.sql (8),
-     * V5__add_document_field_type.sql (3) and V7__allow_nested_subsections.sql (1).
+     * V5__add_document_field_type.sql (3), V7__allow_nested_subsections.sql (1) and
+     * V8__add_matrix_element_type.sql (9).
      * If a future migration adds or removes a hierarchy rule, this set must be updated in the same
      * change - deliberately coupled, the same way FormExportIT is deliberately coupled to
      * docs/json-export-schema.md, so the two can't silently drift apart. (FORMS-13 is the first
@@ -230,7 +231,11 @@ class HierarchyInvariantsIT {
             // V5: a document field sits wherever the other fields do.
             "SECTION->FIELD_DOCUMENT", "SUBSECTION->FIELD_DOCUMENT", "MAP->FIELD_DOCUMENT",
             // V7: subsections nest.
-            "SUBSECTION->SUBSECTION");
+            "SUBSECTION->SUBSECTION",
+            // V8: a MATRIX sits where a MAP does and holds every field type - fields only.
+            "SECTION->MATRIX", "SUBSECTION->MATRIX",
+            "MATRIX->FIELD_TEXT", "MATRIX->FIELD_TEXTAREA", "MATRIX->FIELD_NUMBER", "MATRIX->FIELD_DATE",
+            "MATRIX->FIELD_BOOLEAN", "MATRIX->FIELD_LIST", "MATRIX->FIELD_DOCUMENT");
 
     @Test
     void elementTypeRuleAcceptsExactlyTheSeededPairsAndRejectsEveryOtherCombination() {
