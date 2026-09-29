@@ -2,71 +2,86 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 <!--
-    th:block (not <li>) so this fragment adds no wrapping element of its own: the caller's <li
-    th:each> already provides the <li>. th:replace/th:insert run before th:each on the SAME tag
-    (fragment inclusion has higher precedence than iteration), so the recursive call below puts
-    them on separate nested elements rather than combining both on one <li>.
+    The middle pane's nested boxes (FORMS-18). A node that the hierarchy rules let hold children is
+    a bordered box; anything else is a one-line field row. Nothing here names a type: a future
+    container type gets its box and its own add button from seed data alone.
+
+    Fragments read the page editor's model (page, selectedSectionId, selectedElementId), which
+    they share. Recursion: th:each and th:replace never sit on the same tag - fragment inclusion
+    runs before iteration, so the loop variable would still be unbound.
 -->
+
+<!-- A container's contents: its children, then one add button per allowed child type. -->
+<th:block th:fragment="children(node)">
+    <th:block th:each="child : ${node.children}">
+        <th:block th:replace="~{tree-node :: node(${child})}"></th:block>
+    </th:block>
+    <p th:if="${#lists.isEmpty(node.children)}" class="empty box-empty">Empty &mdash; add something below.</p>
+    <th:block th:replace="~{tree-node :: addBar(${node})}"></th:block>
+</th:block>
+
 <th:block th:fragment="node(node)">
-    <div class="node-row">
-        <span class="node-type" th:text="${node.element.elementType}">TYPE</span>
-        <span class="node-label" th:text="${node.element.label}">Label</span>
-        <span class="node-code" th:text="'(' + ${node.element.code} + ')'">(code)</span>
-
-        <form th:action="@{/ui/elements/{id}/move-up(id=${node.element.id})}" method="post" class="inline-form">
-            <button type="submit" title="Move up">&uarr;</button>
-        </form>
-        <form th:action="@{/ui/elements/{id}/move-down(id=${node.element.id})}" method="post" class="inline-form">
-            <button type="submit" title="Move down">&darr;</button>
-        </form>
-
-        <form th:action="@{/ui/elements/{id}/edit(id=${node.element.id})}" method="post" class="inline-form">
-            <input type="text" name="label" th:value="${node.element.label}" size="18"/>
-            <button type="submit">Rename</button>
-        </form>
-
-        <!-- Every node type gets its detail pane, containers included: which attributes it shows is
-             seed data, so a type with none says so there rather than hiding the entry point.
-             page/selectedSectionId come from the page editor's model, which fragments share. -->
-        <a th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${node.element.id})}"
-           class="button">Attributes</a>
-        <a th:if="${node.element.elementType == 'FIELD_LIST'}"
-           th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${node.element.id})} + '#list-options'"
-           class="button">List options</a>
-
-        <form th:action="@{/ui/elements/{id}/delete(id=${node.element.id})}" method="post" class="inline-form"
-              onsubmit="return confirm('Delete this element and everything under it?');">
-            <button type="submit" class="button-danger">Delete</button>
-        </form>
+    <div th:if="${node.container}" class="box" th:id="'el-' + ${node.element.id}"
+         th:classappend="${node.element.id == selectedElementId} ? 'is-selected'">
+        <div class="box-head">
+            <span class="node-type" th:text="${node.typeLabel}">Subsection</span>
+            <a class="node-label"
+               th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${node.element.id})}"
+               th:text="${node.element.label}">Label</a>
+            <span class="node-code" th:text="${node.element.code}">CODE</span>
+            <th:block th:replace="~{tree-node :: actions(${node})}"></th:block>
+        </div>
+        <th:block th:replace="~{tree-node :: children(${node})}"></th:block>
     </div>
 
-    <form th:if="${not #lists.isEmpty(node.allowedChildTypes)}"
-          th:action="@{/ui/elements/{id}/children(id=${node.element.id})}" method="post" class="inline-form add-child-form">
-        <select name="elementType">
-            <option th:each="type : ${node.allowedChildTypes}" th:value="${type}" th:text="${type}">TYPE</option>
-        </select>
-        <input type="text" name="code" placeholder="code" required="required"/>
-        <input type="text" name="label" placeholder="label" required="required"/>
-        <button type="submit">Add child</button>
-    </form>
+    <div th:unless="${node.container}" class="field-row" th:id="'el-' + ${node.element.id}"
+         th:classappend="${node.element.id == selectedElementId} ? 'is-selected'">
+        <a class="field-label"
+           th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${node.element.id})}"
+           th:text="${node.element.label}">Label</a>
+        <span class="node-type" th:text="${node.typeLabel}">Text</span>
+        <span class="node-code" th:text="${node.element.code}">CODE</span>
+        <th:block th:replace="~{tree-node :: actions(${node})}"></th:block>
+    </div>
+</th:block>
 
-    <!-- templateMaps/pageIsTemplate come from the page's model, which fragments share. Offered only
-         on real pages, and only where a MAP may legally be added (so the hierarchy rules decide). -->
-    <form th:if="${not pageIsTemplate and node.allowedChildTypes.contains('MAP') and not #lists.isEmpty(templateMaps)}"
-          th:action="@{/ui/elements/{id}/clone-map(id=${node.element.id})}" method="post" class="inline-form clone-map-form">
-        <select name="sourceMapId">
-            <option th:each="tm : ${templateMaps}" th:value="${tm.id}"
-                    th:text="${tm.label} + ' (' + ${tm.code} + ') — from ' + ${tm.templatePageLabel}">map</option>
-        </select>
-        <button type="submit">Use this MAP template</button>
-        <span class="clone-note">One-time copy, not a live link: later edits to the template will not change this page.</span>
-    </form>
+<!-- Move up / move down / delete. Rename and attributes live in the inspector. -->
+<th:block th:fragment="actions(node)">
+    <span class="row-actions">
+        <form th:action="@{/ui/elements/{id}/move-up(id=${node.element.id})}" method="post" class="inline-form">
+            <th:block th:replace="~{fragments :: returnTo}"></th:block>
+            <button type="submit" class="icon-button" title="Move up" aria-label="Move up">&uarr;</button>
+        </form>
+        <form th:action="@{/ui/elements/{id}/move-down(id=${node.element.id})}" method="post" class="inline-form">
+            <th:block th:replace="~{fragments :: returnTo}"></th:block>
+            <button type="submit" class="icon-button" title="Move down" aria-label="Move down">&darr;</button>
+        </form>
+        <form th:action="@{/ui/elements/{id}/delete(id=${node.element.id})}" method="post" class="inline-form"
+              th:data-confirm="${node.container} ? 'Delete ' + ${node.element.label} + ' and everything in it?' : 'Delete ' + ${node.element.label} + '?'"
+              onsubmit="return confirm(this.dataset.confirm);">
+            <th:block th:replace="~{fragments :: returnTo}"></th:block>
+            <button type="submit" class="icon-button icon-danger" title="Delete" aria-label="Delete">&#10005;</button>
+        </form>
+    </span>
+</th:block>
 
-    <ul th:if="${not #lists.isEmpty(node.children)}" class="tree-children">
-        <li th:each="child : ${node.children}" class="tree-node">
-            <div th:replace="~{tree-node :: node(${child})}"></div>
-        </li>
-    </ul>
+<!-- One button per allowed child type (all field types share one); each opens its form in place. -->
+<th:block th:fragment="addBar(node)">
+    <div class="add-bar" th:if="${node.container}">
+        <details class="add" th:each="group : ${node.addGroups}">
+            <summary th:text="'+ ' + ${group.label}">+ Field</summary>
+            <form th:action="@{/ui/elements/{id}/children(id=${node.element.id})}" method="post" class="add-form">
+                <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                <select th:if="${#lists.size(group.types) > 1}" name="elementType" aria-label="Type">
+                    <option th:each="t : ${group.types}" th:value="${t.value}" th:text="${t.label}">Text</option>
+                </select>
+                <input th:if="${#lists.size(group.types) == 1}" type="hidden" name="elementType" th:value="${group.types[0].value}"/>
+                <input type="text" name="label" placeholder="Label" required="required" aria-label="Label"/>
+                <input type="text" name="code" placeholder="CODE" required="required" aria-label="Code"/>
+                <button type="submit">Add</button>
+            </form>
+        </details>
+    </div>
 </th:block>
 </body>
 </html>

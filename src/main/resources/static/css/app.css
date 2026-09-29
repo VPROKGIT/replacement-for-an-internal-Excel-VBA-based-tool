@@ -50,103 +50,6 @@ body {
     padding: 1.5rem;
 }
 
-.container-wide {
-    max-width: 1280px;
-}
-
-/* Two-pane page editor */
-.editor {
-    display: grid;
-    grid-template-columns: 260px minmax(0, 1fr);
-    gap: 1.5rem;
-    align-items: start;
-}
-
-.editor-nav {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1rem;
-    position: sticky;
-    top: 1rem;
-}
-
-.page-switcher {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    align-items: center;
-}
-
-.page-switcher label {
-    width: 100%;
-    font-weight: 600;
-    font-size: 0.85rem;
-}
-
-.page-switcher select {
-    flex: 1;
-    min-width: 0;
-}
-
-.nav-back {
-    font-size: 0.9rem;
-    margin: 0.6rem 0 1rem;
-}
-
-.nav-heading {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    margin: 0 0 0.4rem;
-}
-
-.section-list {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 1rem;
-}
-
-.section-list a {
-    display: block;
-    padding: 0.4rem 0.5rem;
-    border-radius: 4px;
-    color: var(--text);
-    text-decoration: none;
-}
-
-.section-list a:hover {
-    background: #eef2f7;
-}
-
-.section-list li.selected a {
-    background: #dbeafe;
-    font-weight: 600;
-}
-
-.section-list .node-code {
-    display: block;
-    font-weight: 400;
-}
-
-.add-section-form {
-    display: grid;
-    gap: 0.35rem;
-    border-top: 1px solid var(--border);
-    padding-top: 0.75rem;
-}
-
-.editor-main {
-    min-width: 0;
-}
-
-.detail-pane h2 {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 h1 {
     margin-top: 0;
 }
@@ -226,54 +129,6 @@ button.button-danger {
     margin: 0 0.25rem;
 }
 
-.tree-children {
-    list-style: none;
-    padding-left: 1.25rem;
-    border-left: 1px dashed var(--border);
-}
-
-.tree-root {
-    padding-left: 0;
-    border-left: none;
-}
-
-.tree-node {
-    margin: 0.5rem 0;
-}
-
-.node-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 0.35rem 0.5rem;
-}
-
-.node-type {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    color: var(--muted);
-    background: #eef2f7;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-}
-
-.node-label {
-    font-weight: 600;
-}
-
-.node-code {
-    color: var(--muted);
-    font-size: 0.85rem;
-}
-
-.add-child-form {
-    margin: 0.5rem 0;
-}
-
 .empty {
     color: var(--muted);
     font-style: italic;
@@ -297,41 +152,491 @@ button.button-danger {
     border: 1px solid #86efac;
 }
 
-.banner-template {
-    background: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fcd34d;
+.node-type {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    background: #eef2f7;
+    padding: 0.05rem 0.4rem;
+    border-radius: 3px;
+    white-space: nowrap;
 }
 
-.page-actions {
-    margin: 0 0 0.75rem;
+.node-code {
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-family: ui-monospace, Consolas, monospace;
 }
 
-.page-actions .inline-form {
-    margin-left: 0;
+/* --- Page editor (FORMS-18): sidebar | section as nested boxes | inspector ------------------ */
+
+.editor-shell {
+    padding: 1rem 1.25rem;
 }
 
-.clone-map-form {
+.editor {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-areas: "nav main";
+    gap: 1rem;
+    align-items: start;
+    max-width: 1800px;
+    margin: 0 auto;
+}
+
+.editor.has-inspector {
+    grid-template-columns: 280px minmax(0, 1fr) 380px;
+    grid-template-areas: "nav main inspector";
+}
+
+.editor-nav {
+    grid-area: nav;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    position: sticky;
+    top: 1rem;
+}
+
+.editor-main {
+    grid-area: main;
+    min-width: 0;
+}
+
+.inspector {
+    grid-area: inspector;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+/* Narrower screens: the inspector drops below the section instead of squeezing it. */
+@media (max-width: 1150px) {
+    .editor.has-inspector {
+        grid-template-columns: 280px minmax(0, 1fr);
+        grid-template-areas: "nav main" "nav inspector";
+    }
+
+    .inspector {
+        position: static;
+        max-height: none;
+    }
+}
+
+@media (max-width: 760px) {
+    .editor,
+    .editor.has-inspector {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "nav" "main" "inspector";
+    }
+
+    .editor-nav {
+        position: static;
+    }
+}
+
+/* Small square buttons: move, delete, settings, close. */
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.icon-button:hover {
+    background: #eef2f7;
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.icon-button.icon-danger {
+    color: var(--danger);
+}
+
+.icon-button.icon-danger:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+}
+
+.small-button {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.row-actions {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.row-actions .inline-form {
+    margin: 0;
+}
+
+/* Sidebar */
+.nav-page {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.25rem;
+}
+
+.nav-page .page-switcher {
+    flex: 1;
+    min-width: 0;
+}
+
+.page-switcher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+.page-switcher label {
+    width: 100%;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.page-switcher select {
+    flex: 1;
+    min-width: 0;
+}
+
+.nav-page-code {
+    margin: 0.25rem 0 0.4rem;
+}
+
+.nav-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    margin-bottom: 0.9rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.nav-heading {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 0 0 0.3rem;
+}
+
+.section-list {
+    list-style: none;
+    padding: 0;
     margin: 0 0 0.5rem;
 }
 
-.clone-note {
-    color: var(--muted);
-    font-size: 0.8rem;
-    font-style: italic;
-    margin-left: 0.4rem;
+.section-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    border-radius: 4px;
 }
 
-.template-map {
-    margin-top: 0.75rem;
+.section-list li:hover {
+    background: #f1f4f8;
 }
 
-.template-fields {
+.section-list li.selected {
+    background: #dbeafe;
+}
+
+.section-list a {
+    flex: 1;
+    min-width: 0;
+    padding: 0.35rem 0.4rem;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.section-list li.selected a {
+    font-weight: 600;
+}
+
+.section-list .node-code {
+    display: block;
+    font-weight: 400;
+}
+
+/* A section's move/delete buttons show on hover and on the selected one, to keep the list calm. */
+.section-list li .row-actions {
+    visibility: hidden;
+}
+
+.section-list li:hover .row-actions,
+.section-list li.selected .row-actions,
+.section-list li:focus-within .row-actions {
+    visibility: visible;
+}
+
+/* Add buttons: a green dashed pill that opens its small form in place (details element, no script). */
+.add-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+}
+
+details.add > summary {
+    display: inline-block;
     list-style: none;
-    padding-left: 1rem;
-    margin: 0.5rem 0 0;
+    cursor: pointer;
+    color: #15803d;
+    border: 1px dashed #4ade80;
+    border-radius: 999px;
+    padding: 0.1rem 0.65rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
 }
 
-.template-fields li {
-    margin: 0.2rem 0;
+details.add > summary::-webkit-details-marker {
+    display: none;
+}
+
+details.add > summary:hover {
+    background: #f0fdf4;
+}
+
+details.add[open] {
+    flex-basis: 100%;
+}
+
+details.add[open] > summary {
+    background: #dcfce7;
+    border-style: solid;
+}
+
+.add-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    margin-top: 0.4rem;
+}
+
+.add-form input[type="text"] {
+    flex: 1 1 8rem;
+    min-width: 0;
+}
+
+.editor-nav .add-form {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* Middle pane: the section and its nested boxes */
+.section-view {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem 1rem 1rem;
+}
+
+.section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+}
+
+.section-head h1 {
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.section-head .icon-button {
+    margin-left: auto;
+    align-self: center;
+}
+
+.box {
+    border: 1px solid #b8c0cc;
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem 0.6rem;
+    margin-top: 0.6rem;
+    background: #fff;
+}
+
+/* Alternate a faint tint by depth, so nesting reads at a glance. */
+.box .box {
+    background: #f8fafc;
+}
+
+.box .box .box {
+    background: #fff;
+}
+
+.box-head {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding-bottom: 0.2rem;
+}
+
+.node-label {
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.node-label:hover,
+.field-label:hover {
+    text-decoration: underline;
+}
+
+.field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.15rem 0.2rem 0.15rem 0.5rem;
+    margin-top: 0.35rem;
+    background: #fff;
+}
+
+.field-row:hover {
+    border-color: #93c5fd;
+}
+
+.field-label {
+    color: var(--accent);
+    text-decoration: none;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.box-empty {
+    font-size: 0.85rem;
+    margin: 0.35rem 0 0;
+}
+
+/* The element open in the inspector */
+.box.is-selected,
+.field-row.is-selected,
+.section-view.is-selected {
+    border: 2px solid var(--accent);
+    background: #eff6ff;
+}
+
+/* Inspector */
+.inspector-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.inspector h2 {
+    font-size: 1.1rem;
+    margin: 0.35rem 0 0.6rem;
+    overflow-wrap: anywhere;
+}
+
+.inspector h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    padding-top: 0.6rem;
+    margin: 0.9rem 0 0.4rem;
+}
+
+.inspector-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin: 0.4rem 0 0.2rem;
+}
+
+.add-form .inspector-label {
+    flex-basis: 100%;
+}
+
+.inspector-inline {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.inspector-inline input {
+    flex: 1;
+    min-width: 0;
+}
+
+.inspector-code {
+    margin: 0;
+}
+
+/* The attribute form stacks label over control in the narrow column. */
+.inspector .form .form-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.2rem;
+    border-bottom: none;
+    padding: 0.3rem 0;
+}
+
+.inspector .form .form-row label {
+    width: auto;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.inspector .form button[type="submit"] {
+    margin-top: 0.4rem;
+}
+
+.option-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.option-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.option-list .option-label {
+    flex: 1;
+    min-width: 0;
+}
+
+.option-list li.inactive {
+    color: var(--muted);
+}
+
+.option-list li.inactive .option-label {
+    text-decoration: line-through;
+}
+
+.option-list .inline-form {
+    margin: 0;
 }

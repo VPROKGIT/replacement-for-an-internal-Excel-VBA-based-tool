@@ -19,7 +19,8 @@ export is always rooted at a whole page, never a fragment.
 not a form) returns `404` from both endpoints, exactly as if it did not exist. This is
 deliberate: a template must never be served as though it were a real form. `MAP`s copied *out of*
 a template into a real page are ordinary elements of that page and export normally — the copy has
-no link back to its template.
+no link back to its template. (Since FORMS-18 the editor offers no way to create or use template
+pages — the feature is awaiting a redesign — but existing ones are still excluded here.)
 
 Lookup by **code** is the intended integration path: `code` is the stable machine key. `by-id`
 exists for tooling and for links out of the editor UI.
@@ -53,6 +54,9 @@ render it with a single recursive function.
 
 Branch on `type` to decide how to render a node. Treat any `type` starting with `FIELD_` as a
 leaf input; `PAGE`, `SECTION`, `SUBSECTION`, and `MAP` are containers.
+
+A `SUBSECTION` may contain further `SUBSECTION`s, to any depth, so render subsections
+recursively rather than assuming one level under a section.
 
 Note the rule is **not** "anything not starting with `FIELD_` is a container" by accident — it is
 that containers are an open set that can grow. Prefer branching on the container types you know

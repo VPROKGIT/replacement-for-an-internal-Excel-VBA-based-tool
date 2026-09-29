@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 <!--
-    The attribute form for one element, shown in the page editor's detail pane. Rows are driven
+    The attribute form for one element, shown in the page editor's inspector. Rows are driven
     entirely by attribute_applicability, so any element type - field or container, including types
     added later - gets exactly the attributes seeded for it, with no change here.
 -->
@@ -11,19 +11,19 @@
 
     <form th:if="${not #lists.isEmpty(rows)}" th:action="@{/ui/elements/{id}/attributes(id=${detail.id})}" method="post" class="form">
         <div class="form-row" th:each="row : ${rows}">
-            <label th:text="${row.name}">Attribute</label>
+            <label th:for="${'attr-' + row.code}" th:text="${row.name}">Attribute</label>
 
-            <select th:if="${row.boolean}" th:name="${row.code}">
+            <select th:if="${row.boolean}" th:id="${'attr-' + row.code}" th:name="${row.code}">
                 <option value="" th:selected="${row.currentValue == ''}">(not set)</option>
                 <option value="true" th:selected="${row.currentValue == 'true'}">true</option>
                 <option value="false" th:selected="${row.currentValue == 'false'}">false</option>
             </select>
 
-            <input th:if="${row.date}" type="date" th:name="${row.code}" th:value="${row.currentValue}"/>
+            <input th:if="${row.date}" type="date" th:id="${'attr-' + row.code}" th:name="${row.code}" th:value="${row.currentValue}"/>
 
-            <input th:if="${row.numeric}" type="text" th:name="${row.code}" th:value="${row.currentValue}"/>
+            <input th:if="${row.numeric}" type="text" th:id="${'attr-' + row.code}" th:name="${row.code}" th:value="${row.currentValue}"/>
 
-            <input th:unless="${row.boolean or row.date or row.numeric}" type="text"
+            <input th:unless="${row.boolean or row.date or row.numeric}" type="text" th:id="${'attr-' + row.code}"
                    th:name="${row.code}" th:value="${row.currentValue}"/>
 
             <span th:if="${row.description}" class="muted attr-hint" th:text="${row.description}">hint</span>

@@ -6,6 +6,7 @@
 <main class="container">
     <h1>Pages</h1>
     <div th:replace="~{fragments :: errorBanner}"></div>
+    <div th:replace="~{fragments :: noticeBanner}"></div>
 
     <table class="table" th:if="${not #lists.isEmpty(pages)}">
         <thead>

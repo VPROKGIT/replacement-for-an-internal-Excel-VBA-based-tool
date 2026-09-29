@@ -26,10 +26,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * The server-rendered structure editor: since FORMS-17 a two-pane page editor where the URL
- * carries the page, the selected section and (for the detail pane) the element. Covers recursive
- * tree rendering (the fragment call must sit on a nested element, not beside th:each), the
- * error-banner path, the detail pane for every element type, and that every URL is canonical.
+ * The server-rendered structure editor: since FORMS-18 a three-column page editor (sections |
+ * the selected section as nested boxes | the inspector) where the URL carries the page, the
+ * selected section and (for the inspector) the element. Covers recursive tree rendering (the
+ * fragment call must sit on a nested element, not beside th:each), the error-banner path, the
+ * inspector for every element type, returning to what was on screen after an action, and that
+ * every URL is canonical.
  * Flash attributes are session-scoped, so a GET following a POST reuses the POST's session.
  * Runs against real Postgres via Testcontainers; skipped automatically without Docker.
  */
@@ -82,11 +84,15 @@ class StructureUiIT {
         Element section = elementRepository.findByParentElementIdAndDeletedAtIsNullOrderByDisplayOrderAsc(page.getId()).get(0);
         assertThat(added.getResponse().getRedirectedUrl()).isEqualTo(sectionUrl(page, section));
 
-        mockMvc.perform(post("/ui/elements/{id}/children", section.getId())
+        // Adding anything else opens it in the inspector, scrolled to it in the section.
+        MvcResult addedField = mockMvc.perform(post("/ui/elements/{id}/children", section.getId())
                         .param("elementType", "FIELD_TEXT")
                         .param("code", "UI_FLD_1")
                         .param("label", "UI Field One"))
-                .andExpect(redirectedUrl(sectionUrl(page, section)));
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        Element field = elementRepository.findByParentElementIdAndDeletedAtIsNullOrderByDisplayOrderAsc(section.getId()).get(0);
+        assertThat(addedField.getResponse().getRedirectedUrl()).isEqualTo(detailUrl(page, section, field) + "#el-" + field.getId());
 
         // Recursive rendering (section -> field) must reach the leaf.
         mockMvc.perform(get(sectionUrl(page, section)))
@@ -94,13 +100,13 @@ class StructureUiIT {
                 .andExpect(content().string(containsString("UI Section One")))
                 .andExpect(content().string(containsString("UI Field One")));
 
-        // Server-side validation rejects what the dropdown wouldn't offer; the error returns the
-        // user to the section they were on ("from"), in a single redirect so the banner survives.
+        // Server-side validation rejects what the add buttons wouldn't offer; the error returns the
+        // user to the section they were on ("section"), in a single redirect so the banner survives.
         MvcResult rejected = mockMvc.perform(post("/ui/elements/{id}/children", page.getId())
                         .param("elementType", "FIELD_TEXT")
                         .param("code", "SNEAKY")
                         .param("label", "Sneaky")
-                        .param("from", section.getId().toString()))
+                        .param("section", section.getId().toString()))
                 .andExpect(redirectedUrl(sectionUrl(page, section)))
                 .andReturn();
         mockMvc.perform(get(sectionUrl(page, section)).session(sessionOf(rejected)))
@@ -172,7 +178,7 @@ class StructureUiIT {
         Element map = elementService.create(section.getId(), "MAP", "UI_CA_MAP", "Map", null);
         Element list = elementService.create(section.getId(), "FIELD_LIST", "UI_CA_LIST", "List", null);
 
-        // Every node in the right pane links to its detail pane - containers included.
+        // Every node in the middle pane links to the inspector - containers included.
         mockMvc.perform(get(sectionUrl(page, section)))
                 .andExpect(content().string(containsString("href=\"" + detailUrl(page, section, section) + "\"")))
                 .andExpect(content().string(containsString("href=\"" + detailUrl(page, section, subsection) + "\"")))
@@ -201,12 +207,12 @@ class StructureUiIT {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("No attributes are applicable to this element type.")));
 
-        // FIELD_LIST: attributes and list options share the one detail pane.
+        // FIELD_LIST: attributes and list options share the one inspector.
         mockMvc.perform(get(detailUrl(page, section, list)))
                 .andExpect(content().string(containsString("List options")))
                 .andExpect(content().string(containsString("New option")));
 
-        // The old per-element URLs still work - they now land on the detail pane.
+        // The old per-element URLs still work - they now land on the inspector.
         mockMvc.perform(get("/ui/elements/{id}/attributes", subsection.getId()))
                 .andExpect(redirectedUrl(detailUrl(page, section, subsection)));
         mockMvc.perform(get("/ui/elements/{id}/list-options", list.getId()))
@@ -221,7 +227,7 @@ class StructureUiIT {
         Element document = elementService.create(section.getId(), "FIELD_DOCUMENT", "UI_DOSSIER", "Dossier", null);
         String detail = detailUrl(page, section, document);
 
-        // Both attributes are offered in the detail pane, with their hints.
+        // Both attributes are offered in the inspector, with their hints.
         mockMvc.perform(get(detail))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Confidential")))
@@ -250,51 +256,127 @@ class StructureUiIT {
     }
 
     @Test
-    void templatesAreBrowsableAndUsingOneClonesItIntoARealPage() throws Exception {
-        mockMvc.perform(post("/ui/templates").param("code", "UI_TPL").param("label", "UI Template"))
-                .andExpect(redirectedUrl("/ui/templates"));
-        Element template = elementRepository.findByElementTypeAndCodeAndDeletedAtIsNull("PAGE", "UI_TPL").orElseThrow();
-        assertThat(template.isTemplate()).isTrue();
+    void theInspectorOpensBesideTheSectionAndActionsReturnToWhatWasOnScreen() throws Exception {
+        Element page = elementService.create(null, "PAGE", "UI_INSPECT", "Inspect page", null);
+        Element section = elementService.create(page.getId(), "SECTION", "UI_IN_SEC", "Inspect section", null);
+        Element subsection = elementService.create(section.getId(), "SUBSECTION", "UI_IN_SUB", "Inspect subsection", null);
+        Element first = elementService.create(subsection.getId(), "FIELD_TEXT", "UI_IN_FIRST", "First field", null);
+        Element second = elementService.create(subsection.getId(), "FIELD_BOOLEAN", "UI_IN_SECOND", "Second field", null);
+        Element map = elementService.create(section.getId(), "MAP", "UI_IN_MAP", "Inspect map", null);
 
-        Element templateSection = elementService.create(template.getId(), "SECTION", "UI_TPL_SEC", "Template section", null);
-        Element templateMap = elementService.create(templateSection.getId(), "MAP", "UI_CONTACT", "Contact block", null);
-        elementService.create(templateMap.getId(), "FIELD_TEXT", "UI_EMAIL", "Email address", null);
+        // The whole section stays visible next to the inspector, with the selected element marked.
+        mockMvc.perform(get(detailUrl(page, section, first)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("class=\"inspector\"")))
+                .andExpect(content().string(containsString("Inspect subsection")))
+                .andExpect(content().string(containsString("Second field")))
+                .andExpect(content().string(containsString("class=\"field-row is-selected\" id=\"el-" + first.getId() + "\"")));
 
-        mockMvc.perform(post("/ui/pages").param("code", "UI_REAL").param("label", "UI Real Page"));
-        Element realPage = elementRepository.findByElementTypeAndCodeAndDeletedAtIsNull("PAGE", "UI_REAL").orElseThrow();
-        Element realSection = elementService.create(realPage.getId(), "SECTION", "UI_REAL_SEC", "Real section", null);
+        // One add button per allowed child type, all field types behind one "Field" button.
+        mockMvc.perform(get(sectionUrl(page, section)))
+                .andExpect(content().string(containsString("+ Field")))
+                .andExpect(content().string(containsString("+ Subsection")))
+                .andExpect(content().string(containsString("+ Map")))
+                .andExpect(content().string(not(containsString("class=\"inspector\""))));
 
-        // The template is kept out of the forms list, and shown - with its MAP and fields - in its own view.
-        mockMvc.perform(get("/ui/pages"))
-                .andExpect(content().string(containsString("UI Real Page")))
-                .andExpect(content().string(not(containsString("UI Template"))));
-        mockMvc.perform(get("/ui/templates"))
-                .andExpect(content().string(containsString("UI Template")))
-                .andExpect(content().string(containsString("Contact block")))
-                .andExpect(content().string(containsString("Email address")));
+        // Moving a field while another is in the inspector keeps the inspector open.
+        String withFirstOpen = detailUrl(page, section, first);
+        mockMvc.perform(post("/ui/elements/{id}/move-up", second.getId())
+                        .param("section", section.getId().toString())
+                        .param("selected", first.getId().toString()))
+                .andExpect(redirectedUrl(withFirstOpen + "#el-" + second.getId()));
+        assertThat(elementService.getChildren(subsection.getId())).extracting(Element::getCode)
+                .containsExactly("UI_IN_SECOND", "UI_IN_FIRST");
 
-        // The real page's section offers the template, with the one-time-copy warning beside it -
-        // and the template page itself does not, even though its section could legally hold a MAP.
-        mockMvc.perform(get(sectionUrl(realPage, realSection)))
-                .andExpect(content().string(containsString("Use this MAP template")))
-                .andExpect(content().string(containsString("One-time copy, not a live link")));
-        mockMvc.perform(get(sectionUrl(template, templateSection)))
-                .andExpect(content().string(containsString("Template page.")))
-                .andExpect(content().string(not(containsString("Use this MAP template"))));
+        // Renaming from the inspector stays in the inspector.
+        mockMvc.perform(post("/ui/elements/{id}/edit", first.getId())
+                        .param("label", "First field, renamed")
+                        .param("section", section.getId().toString())
+                        .param("selected", first.getId().toString()))
+                .andExpect(redirectedUrl(withFirstOpen));
+        assertThat(elementService.getActiveOrThrow(first.getId()).getLabel()).isEqualTo("First field, renamed");
 
-        MvcResult cloned = mockMvc.perform(post("/ui/elements/{id}/clone-map", realSection.getId())
-                        .param("sourceMapId", templateMap.getId().toString()))
-                .andExpect(redirectedUrl(sectionUrl(realPage, realSection)))
+        // Deleting another element keeps the inspector; deleting the element in it closes it.
+        mockMvc.perform(post("/ui/elements/{id}/delete", map.getId())
+                        .param("section", section.getId().toString())
+                        .param("selected", first.getId().toString()))
+                .andExpect(redirectedUrl(withFirstOpen));
+        mockMvc.perform(post("/ui/elements/{id}/delete", first.getId())
+                        .param("section", section.getId().toString())
+                        .param("selected", first.getId().toString()))
+                .andExpect(redirectedUrl(sectionUrl(page, section)));
+    }
+
+    @Test
+    void subsectionsNestInsideSubsections() throws Exception {
+        Element page = elementService.create(null, "PAGE", "UI_NEST", "Nest page", null);
+        Element section = elementService.create(page.getId(), "SECTION", "UI_NEST_SEC", "Nest section", null);
+        Element outer = elementService.create(section.getId(), "SUBSECTION", "UI_NEST_OUTER", "Outer subsection", null);
+
+        MvcResult added = mockMvc.perform(post("/ui/elements/{id}/children", outer.getId())
+                        .param("elementType", "SUBSECTION")
+                        .param("code", "UI_NEST_INNER")
+                        .param("label", "Inner subsection")
+                        .param("section", section.getId().toString()))
+                .andExpect(status().is3xxRedirection())
                 .andReturn();
-        mockMvc.perform(get(sectionUrl(realPage, realSection)).session(sessionOf(cloned)))
-                .andExpect(content().string(containsString("independent one-time copy")))
-                .andExpect(content().string(containsString("(UI_CONTACT)")))
-                .andExpect(content().string(containsString("(UI_EMAIL)")));
+        Element inner = elementService.getChildren(outer.getId()).get(0);
+        assertThat(inner.getElementType()).isEqualTo("SUBSECTION");
+        assertThat(added.getResponse().getRedirectedUrl()).isEqualTo(detailUrl(page, section, inner) + "#el-" + inner.getId());
+        elementService.create(inner.getId(), "FIELD_TEXT", "UI_NEST_FLD", "Deep field", null);
 
-        // Marking a real page as a template takes it out of the forms list.
-        mockMvc.perform(post("/ui/pages/{id}/template", realPage.getId()).param("template", "true"))
-                .andExpect(redirectedUrl(sectionUrl(realPage, realSection)));
-        mockMvc.perform(get("/ui/pages"))
-                .andExpect(content().string(not(containsString("UI Real Page"))));
+        // Both levels render, the field inside the inner one, and anything at any depth is shown
+        // under its top-level section.
+        mockMvc.perform(get(sectionUrl(page, section)))
+                .andExpect(content().string(containsString("Outer subsection")))
+                .andExpect(content().string(containsString("Inner subsection")))
+                .andExpect(content().string(containsString("Deep field")));
+        mockMvc.perform(get(sectionUrl(page, inner)))
+                .andExpect(redirectedUrl(sectionUrl(page, section)));
+    }
+
+    @Test
+    void deletingAPageFromTheSwitcherSoftDeletesItAndOpensTheNextPage() throws Exception {
+        Element first = elementService.create(null, "PAGE", "UI_DEL_1", "Delete me first", null);
+        Element firstSection = elementService.create(first.getId(), "SECTION", "UI_DEL_1_SEC", "S", null);
+        elementService.create(firstSection.getId(), "FIELD_TEXT", "UI_DEL_1_FLD", "F", null);
+        Element second = elementService.create(null, "PAGE", "UI_DEL_2", "Delete me second", null);
+        Element secondSection = elementService.create(second.getId(), "SECTION", "UI_DEL_2_SEC", "S", null);
+
+        // The confirmation names the page and how much goes with it.
+        mockMvc.perform(get(sectionUrl(first, firstSection)))
+                .andExpect(content().string(containsString("Delete page Delete me first (UI_DEL_1) and its 2 element(s)?")));
+
+        // Pages are listed by code, so UI_DEL_2 moves up into UI_DEL_1's place.
+        MvcResult deleted = mockMvc.perform(post("/ui/elements/{id}/delete", first.getId())
+                        .param("section", firstSection.getId().toString()))
+                .andExpect(redirectedUrl(sectionUrl(second, secondSection)))
+                .andReturn();
+        mockMvc.perform(get(sectionUrl(second, secondSection)).session(sessionOf(deleted)))
+                .andExpect(content().string(containsString("Deleted page &quot;Delete me first&quot; (UI_DEL_1).")))
+                .andExpect(content().string(not(containsString(">Delete me first<"))));
+
+        // A soft delete: the row is still there, and the code is free to use again.
+        assertThat(elementRepository.findById(first.getId()).orElseThrow().getDeletedAt()).isNotNull();
+        mockMvc.perform(post("/ui/pages").param("code", "UI_DEL_1").param("label", "Reused code"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(elementRepository.findByElementTypeAndCodeAndDeletedAtIsNull("PAGE", "UI_DEL_1")).isPresent();
+    }
+
+    @Test
+    void theTemplateUiIsGoneButTemplatePagesStayHidden() throws Exception {
+        Element realPage = elementService.create(null, "PAGE", "UI_NO_TPL", "No templates here", null);
+        Element realSection = elementService.create(realPage.getId(), "SECTION", "UI_NO_TPL_SEC", "Section", null);
+        Element template = elementService.create(null, "PAGE", "UI_OLD_TPL", "Old template page", null);
+        template.setTemplate(true);
+        elementRepository.save(template);
+
+        mockMvc.perform(get(sectionUrl(realPage, realSection)))
+                .andExpect(content().string(not(containsString("/ui/templates"))))
+                .andExpect(content().string(not(containsString("Mark as template"))))
+                .andExpect(content().string(not(containsString("Use this MAP template"))))
+                .andExpect(content().string(not(containsString("Old template page"))));
+        mockMvc.perform(get("/ui/templates")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/ui/pages")).andExpect(content().string(not(containsString("Old template page"))));
     }
 }

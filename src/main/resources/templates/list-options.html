@@ -1,49 +1,35 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
-<!-- A FIELD_LIST's options, shown in the page editor's detail pane under its attributes. -->
+<!-- A FIELD_LIST's options, shown in the page editor's inspector under its attributes. -->
 <th:block th:fragment="panel">
-    <table class="table" th:if="${not #lists.isEmpty(options)}">
-        <thead>
-        <tr>
-            <th>Code</th>
-            <th>Label</th>
-            <th>Active</th>
-            <th></th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr th:each="option : ${options}">
-            <td th:text="${option.code}">code</td>
-            <td th:text="${option.label}">Label</td>
-            <td th:text="${option.active} ? 'yes' : 'no'">yes</td>
-            <td>
-                <form th:if="${option.active}"
-                      th:action="@{/ui/elements/{elementId}/list-options/{optionId}/deactivate(elementId=${detail.id},optionId=${option.id})}"
-                      method="post" class="inline-form">
-                    <button type="submit">Deactivate</button>
-                </form>
-            </td>
-        </tr>
-        </tbody>
-    </table>
+    <ul class="option-list" th:if="${not #lists.isEmpty(options)}">
+        <li th:each="option : ${options}" th:classappend="${option.active} ? '' : 'inactive'">
+            <span class="node-code" th:text="${option.code}">code</span>
+            <span class="option-label" th:text="${option.label}">Label</span>
+            <span th:unless="${option.active}" class="muted">inactive</span>
+            <form th:if="${option.active}"
+                  th:action="@{/ui/elements/{elementId}/list-options/{optionId}/deactivate(elementId=${detail.id},optionId=${option.id})}"
+                  method="post" class="inline-form">
+                <button type="submit" class="small-button">Deactivate</button>
+            </form>
+        </li>
+    </ul>
     <p th:if="${#lists.isEmpty(options)}" class="empty">No options yet.</p>
 
-    <p>
+    <p class="muted">
         <a th:if="${not includeInactive}"
            th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${detail.id},includeInactive=true)} + '#list-options'">Show inactive options</a>
         <a th:if="${includeInactive}"
            th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${detail.id})} + '#list-options'">Hide inactive options</a>
     </p>
 
-    <section class="panel">
-        <h3>New option</h3>
-        <form th:action="@{/ui/elements/{id}/list-options(id=${detail.id})}" method="post" class="form-inline">
-            <label>Code <input type="text" name="code" required="required"/></label>
-            <label>Label <input type="text" name="label" required="required"/></label>
-            <button type="submit">Add option</button>
-        </form>
-    </section>
+    <form th:action="@{/ui/elements/{id}/list-options(id=${detail.id})}" method="post" class="add-form">
+        <span class="inspector-label">New option</span>
+        <input type="text" name="label" placeholder="Label" required="required" aria-label="Option label"/>
+        <input type="text" name="code" placeholder="CODE" required="required" aria-label="Option code"/>
+        <button type="submit">Add option</button>
+    </form>
 </th:block>
 </body>
 </html>

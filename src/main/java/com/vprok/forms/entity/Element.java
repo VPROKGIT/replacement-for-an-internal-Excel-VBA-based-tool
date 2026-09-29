@@ -53,6 +53,9 @@ public class Element {
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 0;
 
+    // Template pages (FORMS-14): nothing in the UI or API sets this since FORMS-18 - the feature is
+    // awaiting a redesign (see MapTemplateService). Still honoured: templates stay out of the page
+    // list and the export.
     @Column(name = "is_template", nullable = false)
     private boolean template = false;
 

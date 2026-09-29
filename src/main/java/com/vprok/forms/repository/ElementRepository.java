@@ -20,6 +20,8 @@ public interface ElementRepository extends JpaRepository<Element, Long> {
 
     List<Element> findByPageIdAndDeletedAtIsNullOrderByDisplayOrderAsc(Long pageId);
 
+    long countByPageIdAndDeletedAtIsNull(Long pageId);
+
     List<Element> findByPageIdIsNullAndTemplateFalseAndDeletedAtIsNullOrderByCodeAsc();
 
     List<Element> findByPageIdIsNullAndTemplateTrueAndDeletedAtIsNullOrderByCodeAsc();

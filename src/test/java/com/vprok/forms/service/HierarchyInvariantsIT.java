@@ -207,8 +207,8 @@ class HierarchyInvariantsIT {
             "FIELD_DOCUMENT");
 
     /**
-     * Exactly the pairs seeded across V2__seed_data.sql (14), V3__add_map_element_type.sql (8) and
-     * V5__add_document_field_type.sql (3).
+     * Exactly the pairs seeded across V2__seed_data.sql (14), V3__add_map_element_type.sql (8),
+     * V5__add_document_field_type.sql (3) and V7__allow_nested_subsections.sql (1).
      * If a future migration adds or removes a hierarchy rule, this set must be updated in the same
      * change - deliberately coupled, the same way FormExportIT is deliberately coupled to
      * docs/json-export-schema.md, so the two can't silently drift apart. (FORMS-13 is the first
@@ -228,7 +228,9 @@ class HierarchyInvariantsIT {
             "MAP->FIELD_TEXT", "MAP->FIELD_TEXTAREA", "MAP->FIELD_NUMBER",
             "MAP->FIELD_DATE", "MAP->FIELD_BOOLEAN", "MAP->FIELD_LIST",
             // V5: a document field sits wherever the other fields do.
-            "SECTION->FIELD_DOCUMENT", "SUBSECTION->FIELD_DOCUMENT", "MAP->FIELD_DOCUMENT");
+            "SECTION->FIELD_DOCUMENT", "SUBSECTION->FIELD_DOCUMENT", "MAP->FIELD_DOCUMENT",
+            // V7: subsections nest.
+            "SUBSECTION->SUBSECTION");
 
     @Test
     void elementTypeRuleAcceptsExactlyTheSeededPairsAndRejectsEveryOtherCombination() {

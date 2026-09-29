@@ -21,6 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>A clone is a one-time deep copy: fresh rows, fresh ids, no reference back to the source. Once
  * made, the copy and the template are unrelated - editing or deleting either never touches the
  * other. There is deliberately no "linked" or "synced" mode.
+ *
+ * <p><strong>Currently unused (since FORMS-18).</strong> The editor no longer offers template pages
+ * or the "use this MAP template" picker, and no REST endpoint calls this service: the "save as
+ * template" feature is awaiting a redesign. It is kept - with {@code element.is_template}, V4, and
+ * the export's exclusion of template pages - so that redesign can start from working, tested code.
+ * Existing template pages stay in the database, hidden from the page list and the export.
  */
 @Service
 public class MapTemplateService {

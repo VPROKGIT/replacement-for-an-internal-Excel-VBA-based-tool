@@ -4,25 +4,51 @@
 <body>
 <header th:replace="~{fragments :: nav}"></header>
 <!--
-    Two-pane page editor (FORMS-17). Left: page switcher + this page's top-level sections. Right:
-    one of - the selected section's subtree (sectionTree), one element's detail (detail), or an
-    empty state. Every state has its own URL; there is no client-side state and no JavaScript.
+    Page editor (FORMS-17, redesigned in FORMS-18). Three columns: sidebar (page + its sections),
+    the selected section as nested boxes (sectionTree), and - when an element is selected - the
+    inspector (detail). Every state has its own URL; there is no client-side state. The only
+    script is the confirm() before a delete.
 -->
-<main class="container container-wide">
-    <div class="editor">
+<main class="editor-shell">
+    <div class="editor" th:classappend="${detail} ? 'has-inspector'">
         <aside class="editor-nav">
-            <form th:action="@{/ui/pages/switch}" method="get" class="page-switcher">
-                <label for="page-switch">Page</label>
-                <select id="page-switch" name="id">
-                    <option th:each="p : ${switcherPages}" th:value="${p.id}" th:text="${p.label}"
-                            th:selected="${p.id == page.id}">Page</option>
-                </select>
-                <button type="submit">Open</button>
-            </form>
-            <p class="nav-back">
-                <a th:unless="${pageIsTemplate}" th:href="@{/ui/pages}">&larr; All pages</a>
-                <a th:if="${pageIsTemplate}" th:href="@{/ui/templates}">&larr; All templates</a>
-            </p>
+            <div class="nav-page">
+                <form th:action="@{/ui/pages/switch}" method="get" class="page-switcher">
+                    <label for="page-switch">Page</label>
+                    <select id="page-switch" name="id">
+                        <option th:each="p : ${switcherPages}" th:value="${p.id}" th:text="${p.label}"
+                                th:selected="${p.id == page.id}">Page</option>
+                    </select>
+                    <button type="submit" class="small-button">Open</button>
+                </form>
+                <form th:action="@{/ui/elements/{id}/delete(id=${page.id})}" method="post" class="inline-form"
+                      th:data-confirm="'Delete page ' + ${page.label} + ' (' + ${page.code} + ') and its ' + ${pageElementCount} + ' element(s)?'"
+                      onsubmit="return confirm(this.dataset.confirm);">
+                    <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                    <button type="submit" class="icon-button icon-danger" title="Delete this page" aria-label="Delete this page">&#10005;</button>
+                </form>
+            </div>
+            <p class="node-code nav-page-code" th:text="${page.code}">CODE</p>
+
+            <div class="nav-page-actions">
+                <details class="add">
+                    <summary>Rename page</summary>
+                    <form th:action="@{/ui/elements/{id}/edit(id=${page.id})}" method="post" class="add-form">
+                        <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                        <input type="text" name="label" th:value="${page.label}" required="required" aria-label="Page label"/>
+                        <button type="submit">Rename</button>
+                    </form>
+                </details>
+                <details class="add">
+                    <summary>+ New page</summary>
+                    <form th:action="@{/ui/pages}" method="post" class="add-form">
+                        <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                        <input type="text" name="label" placeholder="Label" required="required" aria-label="Label"/>
+                        <input type="text" name="code" placeholder="CODE" required="required" aria-label="Code"/>
+                        <button type="submit">Create</button>
+                    </form>
+                </details>
+            </div>
 
             <h2 class="nav-heading">Sections</h2>
             <ul class="section-list" th:if="${not #lists.isEmpty(sections)}">
@@ -31,76 +57,92 @@
                         <span th:text="${s.label}">Section</span>
                         <span class="node-code" th:text="${s.code}">CODE</span>
                     </a>
+                    <span class="row-actions">
+                        <form th:action="@{/ui/elements/{id}/move-up(id=${s.id})}" method="post" class="inline-form">
+                            <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                            <button type="submit" class="icon-button" title="Move up" aria-label="Move up">&uarr;</button>
+                        </form>
+                        <form th:action="@{/ui/elements/{id}/move-down(id=${s.id})}" method="post" class="inline-form">
+                            <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                            <button type="submit" class="icon-button" title="Move down" aria-label="Move down">&darr;</button>
+                        </form>
+                        <form th:action="@{/ui/elements/{id}/delete(id=${s.id})}" method="post" class="inline-form"
+                              th:data-confirm="'Delete ' + ${s.label} + ' and everything in it?'"
+                              onsubmit="return confirm(this.dataset.confirm);">
+                            <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                            <button type="submit" class="icon-button icon-danger" title="Delete" aria-label="Delete">&#10005;</button>
+                        </form>
+                    </span>
                 </li>
             </ul>
             <p th:if="${#lists.isEmpty(sections)}" class="empty">No sections yet.</p>
 
-            <form th:if="${not #lists.isEmpty(pageChildTypes)}"
-                  th:action="@{/ui/elements/{id}/children(id=${page.id})}" method="post" class="add-section-form">
-                <input type="hidden" name="from" th:if="${selectedSectionId}" th:value="${selectedSectionId}"/>
-                <select name="elementType">
-                    <option th:each="type : ${pageChildTypes}" th:value="${type}" th:text="${type}">TYPE</option>
-                </select>
-                <input type="text" name="code" placeholder="code" required="required"/>
-                <input type="text" name="label" placeholder="label" required="required"/>
-                <button type="submit">Add section</button>
-            </form>
+            <div class="add-bar">
+                <details class="add" th:each="group : ${sectionAddGroups}">
+                    <summary th:text="'+ Add ' + ${#strings.toLowerCase(group.label)}">+ Add section</summary>
+                    <form th:action="@{/ui/elements/{id}/children(id=${page.id})}" method="post" class="add-form">
+                        <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                        <select th:if="${#lists.size(group.types) > 1}" name="elementType" aria-label="Type">
+                            <option th:each="t : ${group.types}" th:value="${t.value}" th:text="${t.label}">Section</option>
+                        </select>
+                        <input th:if="${#lists.size(group.types) == 1}" type="hidden" name="elementType" th:value="${group.types[0].value}"/>
+                        <input type="text" name="label" placeholder="Label" required="required" aria-label="Label"/>
+                        <input type="text" name="code" placeholder="CODE" required="required" aria-label="Code"/>
+                        <button type="submit">Add</button>
+                    </form>
+                </details>
+            </div>
         </aside>
 
         <section class="editor-main">
-            <h1 th:text="${page.label}">Page</h1>
-            <p class="muted" th:text="'code: ' + ${page.code}">code</p>
-
-            <div th:if="${pageIsTemplate}" class="banner banner-template">
-                <strong>Template page.</strong> Not listed with forms and never returned by the export API.
-                Its MAPs are offered as reusable templates on every section and subsection of real pages.
-            </div>
-
             <div th:replace="~{fragments :: errorBanner}"></div>
             <div th:replace="~{fragments :: noticeBanner}"></div>
 
-            <div class="page-actions">
-                <form th:if="${pageIsTemplate}" th:action="@{/ui/pages/{id}/template(id=${page.id})}" method="post" class="inline-form"
-                      onsubmit="return confirm('Convert to a regular page? It will appear in the page list and be served by the export API.');">
-                    <input type="hidden" name="template" value="false"/>
-                    <button type="submit">Convert to regular page</button>
-                </form>
-                <form th:unless="${pageIsTemplate}" th:action="@{/ui/pages/{id}/template(id=${page.id})}" method="post" class="inline-form"
-                      onsubmit="return confirm('Mark as a template? It will be removed from the page list and the export API will stop serving it.');">
-                    <input type="hidden" name="template" value="true"/>
-                    <button type="submit">Mark as template</button>
-                </form>
+            <!-- The selected section: its whole subtree as nested boxes. -->
+            <div th:if="${sectionTree}" class="section-view" th:id="'el-' + ${sectionTree.element.id}"
+                 th:classappend="${sectionTree.element.id == selectedElementId} ? 'is-selected'">
+                <div class="section-head">
+                    <h1 th:text="${sectionTree.element.label}">Section</h1>
+                    <span class="node-code" th:text="${sectionTree.element.code}">CODE</span>
+                    <a class="icon-button" title="Section settings" aria-label="Section settings"
+                       th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${sectionTree.element.id})}">&#9881;</a>
+                </div>
+                <th:block th:replace="~{tree-node :: children(${sectionTree})}"></th:block>
             </div>
 
-            <!-- Selected section: its whole subtree, with every inline control. -->
-            <ul th:if="${sectionTree}" class="tree-children tree-root">
-                <li class="tree-node">
-                    <div th:replace="~{tree-node :: node(${sectionTree})}"></div>
-                </li>
-            </ul>
-
-            <!-- Detail of one element: its attributes, and list options where it has them. -->
-            <div th:if="${detail}" class="detail-pane">
-                <p><a th:href="@{/ui/pages/{p}/sections/{s}(p=${page.id},s=${selectedSectionId})}">&larr; Back to section</a></p>
-                <h2>
-                    <span class="node-type" th:text="${detail.elementType}">TYPE</span>
-                    <span th:text="${detail.label}">Label</span>
-                    <span class="node-code" th:text="'(' + ${detail.code} + ')'">(code)</span>
-                </h2>
-
-                <h3>Attributes</h3>
-                <div th:replace="~{attribute-editor :: form}"></div>
-
-                <th:block th:if="${hasListOptions}">
-                    <h3 id="list-options">List options</h3>
-                    <div th:replace="~{list-options :: panel}"></div>
-                </th:block>
-            </div>
-
-            <p th:if="${sectionTree == null and detail == null}" class="empty">
+            <p th:if="${sectionTree == null}" class="empty">
                 No sections yet &mdash; add one in the left pane.
             </p>
         </section>
+
+        <!-- The inspector: the selected element's label, attributes and list options. -->
+        <aside th:if="${detail}" class="inspector" id="inspector">
+            <div class="inspector-head">
+                <span class="node-type" th:text="${detailTypeLabel}">Text</span>
+                <a class="icon-button" title="Close" aria-label="Close"
+                   th:href="@{/ui/pages/{p}/sections/{s}(p=${page.id},s=${selectedSectionId})} + '#el-' + ${detail.id}">&#10005;</a>
+            </div>
+            <h2 th:text="${detail.label}">Label</h2>
+
+            <form th:action="@{/ui/elements/{id}/edit(id=${detail.id})}" method="post" class="inspector-form">
+                <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                <label for="detail-label" class="inspector-label">Label</label>
+                <div class="inspector-inline">
+                    <input id="detail-label" type="text" name="label" th:value="${detail.label}" required="required"/>
+                    <button type="submit">Rename</button>
+                </div>
+                <span class="inspector-label">Code</span>
+                <p class="node-code inspector-code" th:text="${detail.code}">CODE</p>
+            </form>
+
+            <h3>Attributes</h3>
+            <div th:replace="~{attribute-editor :: form}"></div>
+
+            <th:block th:if="${hasListOptions}">
+                <h3 id="list-options">List options</h3>
+                <div th:replace="~{list-options :: panel}"></div>
+            </th:block>
+        </aside>
     </div>
 </main>
 </body>
