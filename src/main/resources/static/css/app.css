@@ -672,6 +672,106 @@ details.add[open] > summary {
     margin: 0;
 }
 
+/* --- Inspector tabs and the UI attributes tab (FORMS-22) ---------------------------------- */
+
+.inspector-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--border);
+    margin: 0 0 0.6rem;
+}
+
+.inspector-tabs a {
+    padding: 0.35rem 0.7rem;
+    margin-bottom: -1px;
+    border: 1px solid transparent;
+    border-radius: 4px 4px 0 0;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.inspector-tabs a:hover {
+    color: var(--text);
+}
+
+.inspector-tabs a.active {
+    color: var(--text);
+    font-weight: 600;
+    background: #fff;
+    border-color: var(--border);
+    border-bottom-color: #fff;
+}
+
+.ui-entry-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0.6rem;
+}
+
+.ui-entry-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.3rem;
+    border-bottom: 1px solid var(--border);
+    border-radius: 3px;
+}
+
+.ui-entry-list li.selected {
+    background: #eff6ff;
+    outline: 2px solid var(--accent);
+}
+
+.ui-entry-summary {
+    flex: 1;
+    min-width: 0;
+    color: var(--text);
+    text-decoration: none;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+}
+
+.ui-entry-summary:hover {
+    color: var(--accent);
+}
+
+.ui-box {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem 0.6rem;
+    background: var(--bg);
+}
+
+.inspector .ui-box .form-row label {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.78rem;
+}
+
+.ui-box-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+}
+
+.inspector .ui-box .ui-box-buttons button {
+    margin-top: 0;
+}
+
+.icon-button:disabled,
+.ui-box-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.icon-button:disabled:hover {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+}
+
 /* --- Grid containers (MATRIX, FORMS-20) --------------------------------------------------- */
 
 .grid-size {

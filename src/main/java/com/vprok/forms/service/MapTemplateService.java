@@ -38,16 +38,19 @@ public class MapTemplateService {
     private final ElementRepository elementRepository;
     private final ElementAttributeValueRepository elementAttributeValueRepository;
     private final ElementListOptionRepository elementListOptionRepository;
+    private final UiAttributeService uiAttributeService;
 
     public MapTemplateService(
             ElementService elementService,
             ElementRepository elementRepository,
             ElementAttributeValueRepository elementAttributeValueRepository,
-            ElementListOptionRepository elementListOptionRepository) {
+            ElementListOptionRepository elementListOptionRepository,
+            UiAttributeService uiAttributeService) {
         this.elementService = elementService;
         this.elementRepository = elementRepository;
         this.elementAttributeValueRepository = elementAttributeValueRepository;
         this.elementListOptionRepository = elementListOptionRepository;
+        this.uiAttributeService = uiAttributeService;
     }
 
     public List<Element> getTemplatePages() {
@@ -77,8 +80,8 @@ public class MapTemplateService {
     }
 
     /**
-     * Deep-copies a template MAP - the MAP, every descendant, their attribute values and all list
-     * options (active and inactive, flags preserved) - under {@code targetParentId}.
+     * Deep-copies a template MAP - the MAP, every descendant, their attribute values, UI attribute
+     * entries and all list options (active and inactive, flags preserved) - under {@code targetParentId}.
      *
      * <p>Codes are page-scoped, so any copied code already used anywhere on the target page is
      * suffixed ({@code _2}, {@code _3}, ...) instead of failing the whole clone. The renames are
@@ -128,6 +131,7 @@ public class MapTemplateService {
             optionCopy.setActive(option.isActive());
             elementListOptionRepository.save(optionCopy);
         }
+        uiAttributeService.copyEntries(source.getId(), copy);
         for (Element child : elementRepository.findByParentElementIdAndDeletedAtIsNullOrderByDisplayOrderAsc(source.getId())) {
             copySubtree(child, copy.getId(), child.getDisplayOrder(), takenCodes, renamedCodes);
         }

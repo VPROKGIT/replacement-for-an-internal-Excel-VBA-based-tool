@@ -1,5 +1,36 @@
 /*
- * Page editor: drag and drop inside grid containers (MATRIX, FORMS-20).
+ * Page editor scripts. Both are optional: without them the editor works the same, only less
+ * conveniently.
+ */
+
+/*
+ * The inspector's UI attributes box (FORMS-22): ADD, SAVE and DELETE are greyed out while every
+ * field of the box is empty. SAVE and DELETE also need a selected line; when there is none the
+ * server renders them disabled and without the data-needs-value marker, so they are left alone.
+ */
+(function () {
+    'use strict';
+
+    document.querySelectorAll('form[data-ui-box]').forEach(function (box) {
+        const fields = box.querySelectorAll('input[type="text"]');
+        const buttons = box.querySelectorAll('button[data-needs-value]');
+
+        function update() {
+            const hasValue = Array.prototype.some.call(fields, function (field) {
+                return field.value.trim() !== '';
+            });
+            buttons.forEach(function (button) {
+                button.disabled = !hasValue;
+            });
+        }
+
+        box.addEventListener('input', update);
+        update();
+    });
+})();
+
+/*
+ * Drag and drop inside grid containers (MATRIX, FORMS-20).
  *
  * Optional by design. Dropping a field on a cell only fills in and posts #grid-move-form - the
  * same request the inspector's position fields send - so the server decides whether the move is

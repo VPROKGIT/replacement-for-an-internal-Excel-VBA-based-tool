@@ -39,14 +39,17 @@ public class FormExportService {
     private final ElementRepository elementRepository;
     private final ElementAttributeValueRepository elementAttributeValueRepository;
     private final ElementListOptionRepository elementListOptionRepository;
+    private final UiAttributeService uiAttributeService;
 
     public FormExportService(
             ElementRepository elementRepository,
             ElementAttributeValueRepository elementAttributeValueRepository,
-            ElementListOptionRepository elementListOptionRepository) {
+            ElementListOptionRepository elementListOptionRepository,
+            UiAttributeService uiAttributeService) {
         this.elementRepository = elementRepository;
         this.elementListOptionRepository = elementListOptionRepository;
         this.elementAttributeValueRepository = elementAttributeValueRepository;
+        this.uiAttributeService = uiAttributeService;
     }
 
     // A template page is deliberately indistinguishable from a missing one here (404, not 403 or a
@@ -67,9 +70,17 @@ public class FormExportService {
         return export(page);
     }
 
+    /** Everything a page's nodes need, loaded up front and keyed by element id. */
+    private record PageData(
+            Map<Long, List<Element>> childrenByParentId,
+            Map<Long, Map<String, Object>> attributesByElementId,
+            Map<Long, List<ExportOption>> optionsByElementId,
+            Map<Long, List<Map<String, String>>> uiAttributesByElementId) {
+    }
+
     /**
-     * Loads the whole page in a fixed number of queries (elements, attribute values, list options)
-     * and assembles the tree in memory, rather than querying per node while recursing.
+     * Loads the whole page in a fixed number of queries (elements, attribute values, list options,
+     * UI attributes) and assembles the tree in memory, rather than querying per node while recursing.
      */
     private ExportNode export(Element page) {
         // Every non-PAGE element carries page_id; the PAGE row itself has page_id NULL, hence the
@@ -83,20 +94,12 @@ public class FormExportService {
         Map<Long, List<Element>> childrenByParentId = descendants.stream()
                 .collect(Collectors.groupingBy(e -> e.getParentElement().getId()));
 
-        Map<Long, Map<String, Object>> attributesByElementId = loadAttributes(allIds);
-        Map<Long, List<ExportOption>> optionsByElementId = loadOptions(allIds);
-
-        return toNode(page, childrenByParentId, attributesByElementId, optionsByElementId);
+        return toNode(page, new PageData(childrenByParentId, loadAttributes(allIds), loadOptions(allIds), loadUiAttributes(allIds)));
     }
 
-    private ExportNode toNode(
-            Element element,
-            Map<Long, List<Element>> childrenByParentId,
-            Map<Long, Map<String, Object>> attributesByElementId,
-            Map<Long, List<ExportOption>> optionsByElementId) {
-
-        List<ExportNode> children = childrenByParentId.getOrDefault(element.getId(), List.of()).stream()
-                .map(child -> toNode(child, childrenByParentId, attributesByElementId, optionsByElementId))
+    private ExportNode toNode(Element element, PageData data) {
+        List<ExportNode> children = data.childrenByParentId().getOrDefault(element.getId(), List.of()).stream()
+                .map(child -> toNode(child, data))
                 .toList();
 
         return new ExportNode(
@@ -105,8 +108,9 @@ public class FormExportService {
                 element.getLabel(),
                 element.getElementType(),
                 ExportLayout.from(element.getGridPosition()),
-                attributesByElementId.getOrDefault(element.getId(), Map.of()),
-                optionsByElementId.getOrDefault(element.getId(), List.of()),
+                data.attributesByElementId().getOrDefault(element.getId(), Map.of()),
+                data.optionsByElementId().getOrDefault(element.getId(), List.of()),
+                data.uiAttributesByElementId().getOrDefault(element.getId(), List.of()),
                 children);
     }
 
@@ -132,6 +136,22 @@ public class FormExportService {
                     .add(ExportOption.from(option));
         }
         return Collections.unmodifiableMap(byElementId);
+    }
+
+    /**
+     * Each entry becomes an object of its values under camelCased kind codes, in the kinds' display
+     * order (the order the editor shows them), which is as stable as sorting by key.
+     */
+    private Map<Long, List<Map<String, String>>> loadUiAttributes(List<Long> elementIds) {
+        Map<Long, List<Map<String, String>>> byElementId = new LinkedHashMap<>();
+        uiAttributeService.listByElementIds(elementIds).forEach((elementId, entries) -> byElementId.put(
+                elementId,
+                entries.stream().map(entry -> {
+                    Map<String, String> json = new LinkedHashMap<>();
+                    entry.values().forEach(v -> json.put(toCamelCase(v.code()), v.value()));
+                    return json;
+                }).toList()));
+        return byElementId;
     }
 
     /**
