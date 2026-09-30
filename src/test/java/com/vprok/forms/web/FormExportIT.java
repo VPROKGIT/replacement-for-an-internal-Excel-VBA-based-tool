@@ -1,15 +1,20 @@
 package com.vprok.forms.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.vprok.forms.entity.Element;
 import com.vprok.forms.entity.GridPosition;
 import com.vprok.forms.entity.ElementListOption;
+import com.vprok.forms.entity.UiAttributeEntry;
 import com.vprok.forms.service.ElementAttributeValueService;
 import com.vprok.forms.service.ElementListOptionService;
 import com.vprok.forms.service.ElementService;
 import com.vprok.forms.service.MapTemplateService;
+import com.vprok.forms.service.UiAttributeService;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
@@ -50,6 +55,9 @@ class FormExportIT {
 
     @Autowired
     private MapTemplateService mapTemplateService;
+
+    @Autowired
+    private UiAttributeService uiAttributeService;
 
     @Test
     void exportsFullPageWithExactJsonShape() throws Exception {
@@ -424,6 +432,73 @@ class FormExportIT {
                 .andReturn().getResponse().getContentAsString();
 
         JSONAssert.assertEquals(expected, actual, JSONCompareMode.STRICT);
+    }
+
+    @Test
+    void exportsAFieldsUiAttributeEntriesInOrderWithOnlyTheirFilledInValues() throws Exception {
+        // Mirrors the uiAttributes worked example in docs/json-export-schema.md, asserted STRICT.
+        Element page = elementService.create(null, "PAGE", "UI_EXPORT_PAGE", "UI Attributes Export Page", null);
+        Element section = elementService.create(page.getId(), "SECTION", "UI_SEC", "Contact", null);
+        Element email = elementService.create(section.getId(), "FIELD_TEXT", "EMAIL", "Email", null);
+        Element phone = elementService.create(section.getId(), "FIELD_TEXT", "PHONE", "Phone", null);
+
+        // Added in the wrong order and then moved, so the export must follow the arranged order;
+        // keys given out of kind order, with a blank one, which must not appear.
+        Map<String, String> placeholder = new LinkedHashMap<>();
+        placeholder.put("TARGET_AVAILABLE_FIELD_INDEX", "2");
+        placeholder.put("UI_LABEL", "name@example.com");
+        placeholder.put("UI_PARAMETER", "placeholder");
+        placeholder.put("ACTION_TYPE", "   ");
+        uiAttributeService.add(email.getId(), placeholder);
+        UiAttributeEntry validate = uiAttributeService.add(email.getId(), Map.of("ACTION_TYPE", "VALIDATE", "TARGET_VALUE", "email"));
+        uiAttributeService.move(email.getId(), validate.getId(), -1);
+
+        String expected = """
+                {
+                  "id": %d,
+                  "code": "UI_EXPORT_PAGE",
+                  "label": "UI Attributes Export Page",
+                  "type": "PAGE",
+                  "children": [
+                    {
+                      "id": %d,
+                      "code": "UI_SEC",
+                      "label": "Contact",
+                      "type": "SECTION",
+                      "children": [
+                        {
+                          "id": %d,
+                          "code": "EMAIL",
+                          "label": "Email",
+                          "type": "FIELD_TEXT",
+                          "uiAttributes": [
+                            { "targetValue": "email", "actionType": "VALIDATE" },
+                            { "uiParameter": "placeholder", "uiLabel": "name@example.com", "targetAvailableFieldIndex": "2" }
+                          ]
+                        },
+                        {
+                          "id": %d,
+                          "code": "PHONE",
+                          "label": "Phone",
+                          "type": "FIELD_TEXT"
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """
+                .formatted(page.getId(), section.getId(), email.getId(), phone.getId());
+
+        String actual = mockMvc.perform(get("/api/export/pages/by-code/{code}", "UI_EXPORT_PAGE"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JSONAssert.assertEquals(expected, actual, JSONCompareMode.STRICT);
+        // STRICT ignores key order inside an object; the documented order (the kinds' order) is
+        // checked on the raw text.
+        assertThat(actual).contains("{\"targetValue\":\"email\",\"actionType\":\"VALIDATE\"}");
+        assertThat(actual).contains(
+                "{\"uiParameter\":\"placeholder\",\"uiLabel\":\"name@example.com\",\"targetAvailableFieldIndex\":\"2\"}");
     }
 
     @Test

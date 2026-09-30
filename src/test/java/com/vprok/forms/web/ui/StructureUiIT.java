@@ -14,6 +14,9 @@ import com.vprok.forms.entity.GridPosition;
 import com.vprok.forms.repository.ElementRepository;
 import com.vprok.forms.service.ElementAttributeValueService;
 import com.vprok.forms.service.ElementService;
+import com.vprok.forms.service.UiAttributeEntryView;
+import com.vprok.forms.service.UiAttributeService;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -56,6 +59,9 @@ class StructureUiIT {
 
     @Autowired
     private ElementAttributeValueService attributeValues;
+
+    @Autowired
+    private UiAttributeService uiAttributes;
 
     private static String sectionUrl(Element page, Element section) {
         return "/ui/pages/" + page.getId() + "/sections/" + section.getId();
@@ -440,5 +446,98 @@ class StructureUiIT {
         mockMvc.perform(get(detailUrl(page, section, matrix)))
                 .andExpect(content().string(containsString("Columns")))
                 .andExpect(content().string(not(containsString("Position in grid"))));
+    }
+
+    @Test
+    void aFieldsInspectorHasAUiAttributesTabThatStaysOpenAcrossElements() throws Exception {
+        Element page = elementService.create(null, "PAGE", "UI_TABS", "Tabs", null);
+        Element section = elementService.create(page.getId(), "SECTION", "UI_TABS_SEC", "Tabs section", null);
+        Element email = elementService.create(section.getId(), "FIELD_TEXT", "UI_TABS_EMAIL", "Email", null);
+        Element phone = elementService.create(section.getId(), "FIELD_NUMBER", "UI_TABS_PHONE", "Phone", null);
+        Element sub = elementService.create(section.getId(), "SUBSECTION", "UI_TABS_SUB", "Tabs subsection", null);
+        MockHttpSession session = new MockHttpSession();
+
+        // A field opens on Parameters, with both tabs offered.
+        mockMvc.perform(get(detailUrl(page, section, email)).session(session))
+                .andExpect(content().string(containsString("inspector-tabs")))
+                .andExpect(content().string(containsString("Save attributes")))
+                .andExpect(content().string(not(containsString("data-ui-box"))));
+        // A container has no UI attributes, so no tabs.
+        mockMvc.perform(get(detailUrl(page, section, sub)).session(session))
+                .andExpect(content().string(not(containsString("inspector-tabs"))));
+
+        // Choosing the UI attributes tab shows only that tab...
+        mockMvc.perform(get(detailUrl(page, section, email)).param("tab", "ui").session(session))
+                .andExpect(content().string(containsString("data-ui-box")))
+                .andExpect(content().string(containsString("No UI attributes yet.")))
+                .andExpect(content().string(not(containsString("Save attributes"))));
+        // ...and it stays open for the next field picked, whatever its type.
+        mockMvc.perform(get(detailUrl(page, section, phone)).session(session))
+                .andExpect(content().string(containsString("data-ui-box")));
+        // A container in between shows its parameters, without forgetting the choice.
+        mockMvc.perform(get(detailUrl(page, section, sub)).session(session))
+                .andExpect(content().string(containsString("Save attributes")))
+                .andExpect(content().string(not(containsString("data-ui-box"))));
+        mockMvc.perform(get(detailUrl(page, section, email)).session(session))
+                .andExpect(content().string(containsString("data-ui-box")));
+
+        // Choosing Parameters again is remembered the same way.
+        mockMvc.perform(get(detailUrl(page, section, email)).param("tab", "parameters").session(session))
+                .andExpect(content().string(containsString("Save attributes")));
+        mockMvc.perform(get(detailUrl(page, section, phone)).session(session))
+                .andExpect(content().string(not(containsString("data-ui-box"))));
+    }
+
+    @Test
+    void uiAttributeLinesAreAddedSelectedSavedMovedAndDeletedFromTheBox() throws Exception {
+        Element page = elementService.create(null, "PAGE", "UI_BOX", "Box", null);
+        Element section = elementService.create(page.getId(), "SECTION", "UI_BOX_SEC", "Box section", null);
+        Element field = elementService.create(section.getId(), "FIELD_TEXT", "UI_BOX_FLD", "Box field", null);
+        String uiTab = detailUrl(page, section, field) + "?tab=ui";
+
+        // ADD: a line appears above the box, and the box comes back empty with SAVE/DELETE disabled.
+        mockMvc.perform(post("/ui/elements/{id}/ui-attributes", field.getId())
+                        .param("TARGET_VALUE", "email").param("ACTION_TYPE", "VALIDATE").param("UI_LABEL", ""))
+                .andExpect(redirectedUrl(uiTab));
+        mockMvc.perform(get(uiTab))
+                .andExpect(content().string(containsString("TAR_VAL &quot;email&quot; ; ACT_TYP &quot;VALIDATE&quot;")))
+                .andExpect(content().string(containsString("title=\"Select a line first\"")))
+                .andExpect(content().string(not(containsString("value=\"email\""))));
+
+        // ADD with an empty box: refused, with the reason, back on the tab.
+        MvcResult empty = mockMvc.perform(post("/ui/elements/{id}/ui-attributes", field.getId()).param("TARGET_VALUE", " "))
+                .andExpect(redirectedUrl(uiTab))
+                .andReturn();
+        mockMvc.perform(get(uiTab).session(sessionOf(empty)))
+                .andExpect(content().string(containsString("A UI attribute entry needs at least one value")));
+
+        mockMvc.perform(post("/ui/elements/{id}/ui-attributes", field.getId()).param("UI_LABEL", "Second"))
+                .andExpect(redirectedUrl(uiTab));
+        List<UiAttributeEntryView> entries = uiAttributes.list(field.getId());
+        Long first = entries.get(0).id();
+        Long second = entries.get(1).id();
+
+        // Clicking a line loads it into the box, and SAVE/DELETE now act on it.
+        mockMvc.perform(get(uiTab + "&entry=" + first))
+                .andExpect(content().string(containsString("value=\"email\"")))
+                .andExpect(content().string(containsString("/ui/elements/" + field.getId() + "/ui-attributes/" + first + "/delete")))
+                .andExpect(content().string(not(containsString("title=\"Select a line first\""))));
+
+        // SAVE updates that line, which stays selected.
+        mockMvc.perform(post("/ui/elements/{id}/ui-attributes/{entry}", field.getId(), first)
+                        .param("TARGET_VALUE", "phone").param("ACTION_TYPE", "VALIDATE"))
+                .andExpect(redirectedUrl(uiTab + "&entry=" + first));
+        assertThat(uiAttributes.list(field.getId()).get(0).summary()).isEqualTo("TAR_VAL \"phone\" ; ACT_TYP \"VALIDATE\"");
+
+        // The arrows reorder, keeping whichever line was selected.
+        mockMvc.perform(post("/ui/elements/{id}/ui-attributes/{entry}/move-down", field.getId(), first)
+                        .param("entry", first.toString()))
+                .andExpect(redirectedUrl(uiTab + "&entry=" + first));
+        assertThat(uiAttributes.list(field.getId())).extracting(UiAttributeEntryView::id).containsExactly(second, first);
+
+        // DELETE removes the line; the box comes back empty.
+        mockMvc.perform(post("/ui/elements/{id}/ui-attributes/{entry}/delete", field.getId(), first))
+                .andExpect(redirectedUrl(uiTab));
+        assertThat(uiAttributes.list(field.getId())).extracting(UiAttributeEntryView::id).containsExactly(second);
     }
 }

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+    The inspector's UI attributes tab (FORMS-22): the element's entries as one-line summaries, then
+    the box. Clicking a line loads it into the box (?entry=); clicking it again empties the box.
+    ADD appends the box as a new entry; SAVE and DELETE act on the selected line. The box's fields
+    come from ui_attribute_definition, so a new kind is a seed row, not a change here.
+
+    Script only enables/disables ADD, SAVE and DELETE while typing (js/editor.js): none of them
+    makes sense with an empty box. Without it the server refuses an empty entry with a banner.
+-->
+<th:block th:fragment="panel">
+    <ol class="ui-entry-list" th:if="${not #lists.isEmpty(uiEntries)}">
+        <li th:each="e, stat : ${uiEntries}" th:classappend="${uiSelectedEntry != null and e.id == uiSelectedEntry.id} ? 'selected'">
+            <a class="ui-entry-summary"
+               th:href="${uiSelectedEntry != null and e.id == uiSelectedEntry.id}
+                        ? @{/ui/pages/{p}/sections/{s}/elements/{d}(p=${page.id},s=${selectedSectionId},d=${detail.id},tab='ui')}
+                        : @{/ui/pages/{p}/sections/{s}/elements/{d}(p=${page.id},s=${selectedSectionId},d=${detail.id},tab='ui',entry=${e.id})}"
+               th:title="${uiSelectedEntry != null and e.id == uiSelectedEntry.id} ? 'Click to empty the box' : 'Click to edit'"
+               th:text="${e.summary()}">TAR_VAL "email" ; ACT_TYP "VALIDATE"</a>
+            <span class="row-actions">
+                <form th:action="@{/ui/elements/{id}/ui-attributes/{entry}/move-up(id=${detail.id},entry=${e.id})}" method="post" class="inline-form">
+                    <input th:if="${uiSelectedEntry}" type="hidden" name="entry" th:value="${uiSelectedEntry.id}"/>
+                    <button type="submit" class="icon-button" title="Move up" aria-label="Move up" th:disabled="${stat.first}">&uarr;</button>
+                </form>
+                <form th:action="@{/ui/elements/{id}/ui-attributes/{entry}/move-down(id=${detail.id},entry=${e.id})}" method="post" class="inline-form">
+                    <input th:if="${uiSelectedEntry}" type="hidden" name="entry" th:value="${uiSelectedEntry.id}"/>
+                    <button type="submit" class="icon-button" title="Move down" aria-label="Move down" th:disabled="${stat.last}">&darr;</button>
+                </form>
+            </span>
+        </li>
+    </ol>
+    <p th:if="${#lists.isEmpty(uiEntries)}" class="empty">No UI attributes yet.</p>
+
+    <form th:action="@{/ui/elements/{id}/ui-attributes(id=${detail.id})}" method="post" class="form ui-box" data-ui-box="">
+        <div class="form-row" th:each="row : ${uiRows}">
+            <label th:for="${'ui-' + row.code}" th:text="${row.code}" th:title="${row.name}">TARGET_VALUE</label>
+            <input type="text" th:id="${'ui-' + row.code}" th:name="${row.code}" th:value="${row.value}"/>
+        </div>
+        <div class="ui-box-buttons">
+            <button type="submit" data-needs-value="">ADD</button>
+            <th:block th:if="${uiSelectedEntry}">
+                <button type="submit" data-needs-value=""
+                        th:formaction="@{/ui/elements/{id}/ui-attributes/{entry}(id=${detail.id},entry=${uiSelectedEntry.id})}">SAVE</button>
+                <button type="submit" class="button-danger" data-needs-value=""
+                        th:formaction="@{/ui/elements/{id}/ui-attributes/{entry}/delete(id=${detail.id},entry=${uiSelectedEntry.id})}"
+                        data-confirm="Delete this UI attribute line?"
+                        onclick="return confirm(this.dataset.confirm);">DELETE</button>
+                <a class="muted" th:href="@{/ui/pages/{p}/sections/{s}/elements/{d}(p=${page.id},s=${selectedSectionId},d=${detail.id},tab='ui')}">Clear</a>
+            </th:block>
+            <th:block th:unless="${uiSelectedEntry}">
+                <button type="submit" disabled="disabled" title="Select a line first">SAVE</button>
+                <button type="submit" class="button-danger" disabled="disabled" title="Select a line first">DELETE</button>
+            </th:block>
+        </div>
+    </form>
+</th:block>
+</body>
+</html>

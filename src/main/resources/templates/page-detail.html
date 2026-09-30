@@ -6,9 +6,10 @@
 <!--
     Page editor (FORMS-17, redesigned in FORMS-18). Three columns: sidebar (page + its sections),
     the selected section as nested boxes (sectionTree), and - when an element is selected - the
-    inspector (detail). Every state has its own URL; there is no client-side state. Script is
-    optional: the confirm() before a delete, and dragging grid (MATRIX) fields between cells
-    (js/editor.js), which posts the same form the inspector's position fields do.
+    inspector (detail). Every state has its own URL (except which inspector tab is open, kept in the
+    session); there is no client-side state. Script is optional: the confirm() before a delete,
+    dragging grid (MATRIX) fields between cells (js/editor.js), which posts the same form the
+    inspector's position fields do, and greying out the UI attributes buttons while the box is empty.
 -->
 <main class="editor-shell">
     <div class="editor" th:classappend="${detail} ? 'has-inspector'">
@@ -116,7 +117,9 @@
             </p>
         </section>
 
-        <!-- The inspector: the selected element's label, attributes and list options. -->
+        <!-- The inspector: the selected element's label, attributes and list options - and, for a
+             field, a second tab with its UI attributes (FORMS-22). Only the open tab is rendered;
+             which one is open is remembered for the session (see StructureUiController). -->
         <aside th:if="${detail}" class="inspector" id="inspector">
             <div class="inspector-head">
                 <span class="node-type" th:text="${detailTypeLabel}">Text</span>
@@ -125,41 +128,56 @@
             </div>
             <h2 th:text="${detail.label}">Label</h2>
 
-            <form th:action="@{/ui/elements/{id}/edit(id=${detail.id})}" method="post" class="inspector-form">
-                <th:block th:replace="~{fragments :: returnTo}"></th:block>
-                <label for="detail-label" class="inspector-label">Label</label>
-                <div class="inspector-inline">
-                    <input id="detail-label" type="text" name="label" th:value="${detail.label}" required="required"/>
-                    <button type="submit">Rename</button>
-                </div>
-                <span class="inspector-label">Code</span>
-                <p class="node-code inspector-code" th:text="${detail.code}">CODE</p>
-            </form>
+            <nav th:if="${hasUiAttributes}" class="inspector-tabs" aria-label="Inspector tabs">
+                <a th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${detail.id},tab='parameters')}"
+                   th:classappend="${inspectorTab == 'parameters'} ? 'active'"
+                   th:attr="aria-current=${inspectorTab == 'parameters'} ? 'page' : null">Parameters</a>
+                <a th:href="@{/ui/pages/{p}/sections/{s}/elements/{e}(p=${page.id},s=${selectedSectionId},e=${detail.id},tab='ui')}"
+                   th:classappend="${inspectorTab == 'ui'} ? 'active'"
+                   th:attr="aria-current=${inspectorTab == 'ui'} ? 'page' : null">UI attributes</a>
+            </nav>
 
-            <!-- A child of a grid (MATRIX): its cell and size. Dragging it in the middle pane posts the same form. -->
-            <th:block th:if="${detailLayout}">
-                <h3>Position in grid</h3>
-                <form th:action="@{/ui/elements/{id}/position(id=${detail.id})}" method="post" class="position-form">
-                    <th:block th:replace="~{fragments :: returnTo}"></th:block>
-                    <label>Row
-                        <input type="number" name="row" min="1" required="required" th:value="${detailLayout.row}"/></label>
-                    <label>Column
-                        <input type="number" name="column" min="1" th:max="${detailGridColumns}" required="required" th:value="${detailLayout.column}"/></label>
-                    <label>Height (rows)
-                        <input type="number" name="rowSpan" min="1" required="required" th:value="${detailLayout.rowSpan}"/></label>
-                    <label>Width (columns)
-                        <input type="number" name="columnSpan" min="1" th:max="${detailGridColumns}" required="required" th:value="${detailLayout.columnSpan}"/></label>
-                    <button type="submit">Move</button>
-                </form>
-                <p class="muted attr-hint" th:text="'The grid has ' + ${detailGridColumns} + ' columns. You can also drag the field to another cell.'">hint</p>
+            <th:block th:if="${inspectorTab == 'ui'}">
+                <th:block th:replace="~{ui-attributes :: panel}"></th:block>
             </th:block>
 
-            <h3>Attributes</h3>
-            <div th:replace="~{attribute-editor :: form}"></div>
+            <th:block th:if="${inspectorTab == 'parameters'}">
+                <form th:action="@{/ui/elements/{id}/edit(id=${detail.id})}" method="post" class="inspector-form">
+                    <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                    <label for="detail-label" class="inspector-label">Label</label>
+                    <div class="inspector-inline">
+                        <input id="detail-label" type="text" name="label" th:value="${detail.label}" required="required"/>
+                        <button type="submit">Rename</button>
+                    </div>
+                    <span class="inspector-label">Code</span>
+                    <p class="node-code inspector-code" th:text="${detail.code}">CODE</p>
+                </form>
 
-            <th:block th:if="${hasListOptions}">
-                <h3 id="list-options">List options</h3>
-                <div th:replace="~{list-options :: panel}"></div>
+                <!-- A child of a grid (MATRIX): its cell and size. Dragging it in the middle pane posts the same form. -->
+                <th:block th:if="${detailLayout}">
+                    <h3>Position in grid</h3>
+                    <form th:action="@{/ui/elements/{id}/position(id=${detail.id})}" method="post" class="position-form">
+                        <th:block th:replace="~{fragments :: returnTo}"></th:block>
+                        <label>Row
+                            <input type="number" name="row" min="1" required="required" th:value="${detailLayout.row}"/></label>
+                        <label>Column
+                            <input type="number" name="column" min="1" th:max="${detailGridColumns}" required="required" th:value="${detailLayout.column}"/></label>
+                        <label>Height (rows)
+                            <input type="number" name="rowSpan" min="1" required="required" th:value="${detailLayout.rowSpan}"/></label>
+                        <label>Width (columns)
+                            <input type="number" name="columnSpan" min="1" th:max="${detailGridColumns}" required="required" th:value="${detailLayout.columnSpan}"/></label>
+                        <button type="submit">Move</button>
+                    </form>
+                    <p class="muted attr-hint" th:text="'The grid has ' + ${detailGridColumns} + ' columns. You can also drag the field to another cell.'">hint</p>
+                </th:block>
+
+                <h3>Attributes</h3>
+                <div th:replace="~{attribute-editor :: form}"></div>
+
+                <th:block th:if="${hasListOptions}">
+                    <h3 id="list-options">List options</h3>
+                    <div th:replace="~{list-options :: panel}"></div>
+                </th:block>
             </th:block>
         </aside>
     </div>

@@ -39,6 +39,7 @@ regardless of whether it is the page, a section, a subsection, or a field:
 | `layout`     | object            | no              | Cell and size in the grid. Only on a child of a `MATRIX`.            |
 | `attributes` | object            | no              | Resolved attribute values, keyed by camelCase attribute code.       |
 | `options`    | array of objects  | no              | Selectable options. Only on `FIELD_LIST` elements.                  |
+| `uiAttributes` | array of objects | no             | UI attribute entries, in order. Only on fields (see below).         |
 | `children`   | array of nodes    | no              | Child elements, in display order.                                   |
 
 Each entry of `options` is `{ "code": string, "label": string, "isDefault": boolean }`.
@@ -148,8 +149,8 @@ This `MATRIX` node (inside a page and section) is asserted byte-for-byte (STRICT
 
 ## Conventions
 
-**Absent means empty.** `attributes`, `options`, and `children` are omitted entirely when they
-would be empty, rather than emitted as `{}` / `[]`; `layout` is omitted outside a `MATRIX`. A missing key means "none" — never
+**Absent means empty.** `attributes`, `options`, `uiAttributes` and `children` are omitted entirely
+when they would be empty, rather than emitted as `{}` / `[]`; `layout` is omitted outside a `MATRIX`. A missing key means "none" — never
 "unknown". Treat a missing `children` as `[]` and a missing `attributes` as `{}`.
 
 **Unset attributes are omitted, not defaulted.** If an attribute has no value for an element, its
@@ -176,7 +177,7 @@ raw `attribute_definition` ids that a consumer would have to resolve separately.
 
 `DATE` stays a string in ISO-8601 (`yyyy-MM-dd`) form because JSON has no date type.
 
-**Ordering is stable and meaningful.** `children` and `options` are ordered by their
+**Ordering is stable and meaningful.** `children`, `options` and `uiAttributes` are ordered by their
 `display_order`, which is the order authors arranged them in and the order they should render
 in. (Inside a `MATRIX` that order is the grid's reading order, kept in step with `layout`.) Keys within `attributes` are sorted alphabetically, so a given structure always serialises
 byte-identically and diffs cleanly.
@@ -379,6 +380,69 @@ the page's own codes and handle a missing or unexpected target gracefully.
           "label": "Public dossier",
           "type": "FIELD_DOCUMENT",
           "attributes": { "confidential": false }
+        }
+      ]
+    }
+  ]
+}
+```
+
+This structure is likewise asserted byte-for-byte (STRICT) in `FormExportIT`.
+
+### `uiAttributes`: UI attribute entries of a field
+
+A field can carry a list of **UI attribute entries**, set in the editor's "UI attributes" tab. Each
+entry is one object; its keys are the camelCased codes of the values filled in for it:
+
+| Key                         | Editor code                    |
+|-----------------------------|--------------------------------|
+| `uiParameter`               | `UI_PARAMETER`                 |
+| `targetValue`               | `TARGET_VALUE`                 |
+| `targetNodeDefId`           | `TARGET_NODE_DEF_ID`           |
+| `uiLabel`                   | `UI_LABEL`                     |
+| `actionType`                | `ACTION_TYPE`                  |
+| `targetDataNodeField`       | `TARGET_DATA_NODE_FIELD`       |
+| `targetAvailableFieldIndex` | `TARGET_AVAILABLE_FIELD_INDEX` |
+
+- **Every value is a string**, as typed (surrounding spaces removed). The application gives them no
+  meaning and does not validate them: `targetAvailableFieldIndex` is `"2"`, not `2`, and
+  `targetNodeDefId` is not checked against the page.
+- **Only filled-in values appear.** An entry has at least one key; which keys vary from entry to
+  entry. A missing key means "not set for this entry".
+- **Order matters.** Entries are listed in the order the author arranged them in. Within an entry,
+  keys follow the table above.
+- Only fields (`FIELD_*`) carry `uiAttributes`. The key is absent when a field has no entries.
+- The list of kinds is seed data, like attributes: a new kind appears here as a new camelCased key,
+  with no change to the shape.
+
+```json
+{
+  "id": 1,
+  "code": "UI_EXPORT_PAGE",
+  "label": "UI Attributes Export Page",
+  "type": "PAGE",
+  "children": [
+    {
+      "id": 2,
+      "code": "UI_SEC",
+      "label": "Contact",
+      "type": "SECTION",
+      "children": [
+        {
+          "id": 3,
+          "code": "EMAIL",
+          "label": "Email",
+          "type": "FIELD_TEXT",
+          "uiAttributes": [
+            { "targetValue": "email", "actionType": "VALIDATE" },
+            { "uiParameter": "placeholder", "uiLabel": "name@example.com", "targetAvailableFieldIndex": "2" }
+          ]
+        },
+        {
+          "id": 4,
+          "code": "PHONE",
+          "label": "Phone",
+          "type": "FIELD_TEXT"
         }
       ]
     }

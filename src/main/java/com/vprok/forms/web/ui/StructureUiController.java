@@ -4,17 +4,21 @@ import com.vprok.forms.entity.AttributeDefinition;
 import com.vprok.forms.entity.Element;
 import com.vprok.forms.entity.ElementAttributeValue;
 import com.vprok.forms.entity.GridPosition;
+import com.vprok.forms.entity.UiAttributeDefinition;
 import com.vprok.forms.service.AttributeDefinitionService;
 import com.vprok.forms.service.ElementAttributeValueService;
 import com.vprok.forms.service.ElementListOptionService;
 import com.vprok.forms.service.ElementService;
 import com.vprok.forms.service.GridLayoutService;
+import com.vprok.forms.service.UiAttributeEntryView;
+import com.vprok.forms.service.UiAttributeService;
 import com.vprok.forms.web.dto.ElementResponse;
 import com.vprok.forms.web.dto.ListOptionResponse;
 import com.vprok.forms.web.error.DataIntegrityMessage;
 import com.vprok.forms.web.error.InvalidAttributeValueException;
 import com.vprok.forms.web.error.InvalidElementHierarchyException;
 import com.vprok.forms.web.error.ResourceNotFoundException;
+import jakarta.servlet.http.HttpSession;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -45,6 +49,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  * element may have and which attributes it carries come from seed data, so a new container type
  * needs no change here.
  *
+ * <p>One exception to "everything is in the URL": the inspector's tab (Parameters / UI attributes,
+ * FORMS-22) is remembered in the session, so it stays on the tab last used across elements and
+ * after every action without each link and redirect having to carry it.
+ *
  * <p>Every POST redirects straight to its final URL: flash attributes (error/notice banners)
  * survive exactly one redirect, so a second hop would silently drop them. Editor forms send what
  * was on screen ({@code section}, {@code selected}) so an action returns there when it still
@@ -56,23 +64,31 @@ public class StructureUiController {
 
     private static final String PAGE_TYPE = "PAGE";
 
+    /** The inspector's tabs; the one last chosen is kept in the session under {@link #TAB_SESSION_KEY}. */
+    static final String TAB_PARAMETERS = "parameters";
+    static final String TAB_UI = "ui";
+    static final String TAB_SESSION_KEY = "forms.inspectorTab";
+
     private final ElementService elementService;
     private final AttributeDefinitionService attributeDefinitionService;
     private final ElementAttributeValueService elementAttributeValueService;
     private final ElementListOptionService elementListOptionService;
     private final GridLayoutService gridLayoutService;
+    private final UiAttributeService uiAttributeService;
 
     public StructureUiController(
             ElementService elementService,
             AttributeDefinitionService attributeDefinitionService,
             ElementAttributeValueService elementAttributeValueService,
             ElementListOptionService elementListOptionService,
-            GridLayoutService gridLayoutService) {
+            GridLayoutService gridLayoutService,
+            UiAttributeService uiAttributeService) {
         this.elementService = elementService;
         this.attributeDefinitionService = attributeDefinitionService;
         this.elementAttributeValueService = elementAttributeValueService;
         this.elementListOptionService = elementListOptionService;
         this.gridLayoutService = gridLayoutService;
+        this.uiAttributeService = uiAttributeService;
     }
 
     // --- page list --------------------------------------------------------------------------
@@ -145,6 +161,9 @@ public class StructureUiController {
             @PathVariable Long sectionId,
             @PathVariable Long elementId,
             @RequestParam(defaultValue = "false") boolean includeInactive,
+            @RequestParam(required = false) String tab,
+            @RequestParam(required = false) Long entry,
+            HttpSession session,
             Model model) {
         Element element = elementService.getActiveOrThrow(elementId);
         if (PAGE_TYPE.equals(element.getElementType())) {
@@ -164,6 +183,18 @@ public class StructureUiController {
             model.addAttribute("detailGridColumns", gridLayoutService.columnCount(element.getParentElement().getId()));
         }
         model.addAttribute("detailTypeLabel", ElementTreeNode.typeLabel(element.getElementType()));
+
+        // Two tabs where the element has UI attributes. The tab last chosen is remembered for the
+        // session, so it stays open when another element is picked or after a form is posted.
+        boolean hasUiAttributes = uiAttributeService.appliesTo(element.getElementType());
+        String inspectorTab = hasUiAttributes ? rememberTab(tab, session) : TAB_PARAMETERS;
+        model.addAttribute("hasUiAttributes", hasUiAttributes);
+        model.addAttribute("inspectorTab", inspectorTab);
+        if (TAB_UI.equals(inspectorTab)) {
+            populateUiAttributesTab(model, elementId, entry);
+            return "page-detail";
+        }
+
         model.addAttribute("rows", attributeRows(element));
         boolean hasListOptions = "FIELD_LIST".equals(element.getElementType());
         model.addAttribute("hasListOptions", hasListOptions);
@@ -322,7 +353,80 @@ public class StructureUiController {
         return tryOrRedirect(redirectAttributes, redirectUrl, () -> elementListOptionService.deactivate(id, optionId));
     }
 
+    // --- UI attributes tab (FORMS-22) --------------------------------------------------------
+
+    /** ADD: a new entry from the box's values; the box comes back empty. */
+    @PostMapping("/elements/{id}/ui-attributes")
+    public String addUiAttributes(@PathVariable Long id, @RequestParam Map<String, String> allParams, RedirectAttributes redirectAttributes) {
+        String redirectUrl = uiTabUrl(elementService.getActiveOrThrow(id), null);
+        return tryOrRedirect(redirectAttributes, redirectUrl, () -> uiAttributeService.add(id, submittedUiValues(allParams)));
+    }
+
+    /** SAVE: the selected entry takes the box's values, and stays selected. */
+    @PostMapping("/elements/{id}/ui-attributes/{entryId}")
+    public String saveUiAttributes(
+            @PathVariable Long id, @PathVariable Long entryId, @RequestParam Map<String, String> allParams, RedirectAttributes redirectAttributes) {
+        String redirectUrl = uiTabUrl(elementService.getActiveOrThrow(id), entryId);
+        return tryOrRedirect(redirectAttributes, redirectUrl, () -> uiAttributeService.update(id, entryId, submittedUiValues(allParams)));
+    }
+
+    /** DELETE: removes the selected entry; the box comes back empty. */
+    @PostMapping("/elements/{id}/ui-attributes/{entryId}/delete")
+    public String deleteUiAttributes(@PathVariable Long id, @PathVariable Long entryId, RedirectAttributes redirectAttributes) {
+        String redirectUrl = uiTabUrl(elementService.getActiveOrThrow(id), null);
+        return tryOrRedirect(redirectAttributes, redirectUrl, () -> uiAttributeService.delete(id, entryId));
+    }
+
+    /** The arrows beside each line. {@code entry} is the line selected at the time, kept selected. */
+    @PostMapping("/elements/{id}/ui-attributes/{entryId}/move-up")
+    public String moveUiAttributesUp(
+            @PathVariable Long id, @PathVariable Long entryId, @RequestParam(required = false) Long entry, RedirectAttributes redirectAttributes) {
+        String redirectUrl = uiTabUrl(elementService.getActiveOrThrow(id), entry);
+        return tryOrRedirect(redirectAttributes, redirectUrl, () -> uiAttributeService.move(id, entryId, -1));
+    }
+
+    @PostMapping("/elements/{id}/ui-attributes/{entryId}/move-down")
+    public String moveUiAttributesDown(
+            @PathVariable Long id, @PathVariable Long entryId, @RequestParam(required = false) Long entry, RedirectAttributes redirectAttributes) {
+        String redirectUrl = uiTabUrl(elementService.getActiveOrThrow(id), entry);
+        return tryOrRedirect(redirectAttributes, redirectUrl, () -> uiAttributeService.move(id, entryId, 1));
+    }
+
     // --- helpers ----------------------------------------------------------------------------
+
+    /** The requested tab, stored for the session; without one, the stored tab (Parameters at first). */
+    private static String rememberTab(String requested, HttpSession session) {
+        if (TAB_PARAMETERS.equals(requested) || TAB_UI.equals(requested)) {
+            session.setAttribute(TAB_SESSION_KEY, requested);
+            return requested;
+        }
+        return TAB_UI.equals(session.getAttribute(TAB_SESSION_KEY)) ? TAB_UI : TAB_PARAMETERS;
+    }
+
+    /** The entry lines, and the box: empty, or holding the selected entry's values. */
+    private void populateUiAttributesTab(Model model, Long elementId, Long selectedEntryId) {
+        List<UiAttributeEntryView> entries = uiAttributeService.list(elementId);
+        UiAttributeEntryView selected = entries.stream().filter(e -> e.id().equals(selectedEntryId)).findFirst().orElse(null);
+        Map<String, String> boxValues = selected == null ? Map.of() : selected.valuesByCode();
+        model.addAttribute("uiEntries", entries);
+        model.addAttribute("uiSelectedEntry", selected);
+        model.addAttribute("uiRows", uiAttributeService.definitions().stream()
+                .map(def -> new UiAttributeRow(def.getCode(), def.getName(), boxValues.getOrDefault(def.getCode(), "")))
+                .toList());
+    }
+
+    /** Only the box's fields: the form also carries the CSRF token and the like. */
+    private Map<String, String> submittedUiValues(Map<String, String> allParams) {
+        Map<String, String> submitted = new LinkedHashMap<>();
+        for (UiAttributeDefinition definition : uiAttributeService.definitions()) {
+            submitted.put(definition.getCode(), allParams.get(definition.getCode()));
+        }
+        return submitted;
+    }
+
+    private String uiTabUrl(Element element, Long selectedEntryId) {
+        return detailViewUrl(element) + "?tab=" + TAB_UI + (selectedEntryId == null ? "" : "&entry=" + selectedEntryId);
+    }
 
     /**
      * The page switcher's delete: a soft delete like every other (a permanent delete is
