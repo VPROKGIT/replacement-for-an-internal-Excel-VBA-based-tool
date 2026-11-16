@@ -1,0 +1,128 @@
+<header class="bar">
+    <span class="brand">Template editor</span>
+
+    @if (store.loaded()) {
+        <span class="file" [title]="store.savesInPlace() ? 'Save writes into this file' : 'Save downloads a copy'">
+            <span class="file-name">{{ store.fileName() }}</span>
+            @if (store.dirty()) {
+                <span class="unsaved">unsaved changes</span>
+            } @else {
+                <span class="saved">saved</span>
+            }
+        </span>
+    }
+
+    <div class="bar-actions">
+        @if (store.loaded()) {
+            <button type="button" class="pill" [class.bad]="errorCount() > 0" [class.warn]="errorCount() === 0 && warningCount() > 0"
+                    title="Show the file overview and its problems" (click)="store.select(null)">
+                @if (store.issues().length === 0) {
+                    No problems
+                } @else {
+                    {{ errorCount() }} error(s), {{ warningCount() }} warning(s)
+                }
+            </button>
+            <button type="button" class="ghost icon" title="Undo (Ctrl+Z)" aria-label="Undo"
+                    [disabled]="!store.canUndo()" (click)="store.undo()">&#8630;</button>
+            <button type="button" class="ghost icon" title="Redo (Ctrl+Y)" aria-label="Redo"
+                    [disabled]="!store.canRedo()" (click)="store.redo()">&#8631;</button>
+        }
+        <button type="button" class="ghost" (click)="open()">Open&hellip;</button>
+        @if (store.loaded()) {
+            <button type="button" class="ghost" title="Save under another name or place (Ctrl+Shift+S)" (click)="store.saveAs()">Save as&hellip;</button>
+            <button type="button" class="primary" title="Ctrl+S" [disabled]="!store.dirty()" (click)="store.save()">Save</button>
+        }
+    </div>
+    <input #fileInput type="file" accept=".json,application/json" hidden (change)="picked($event)"/>
+</header>
+
+@if (!store.loaded()) {
+    <main class="welcome">
+        <div class="welcome-card" [class.dragging]="dragging()">
+            <h1>Open a template file</h1>
+            <p>
+                Shows a template's node definitions as a tree, lets you edit every node, its UI parameters and its
+                available fields, and writes your changes back to the file.
+            </p>
+            <div class="welcome-actions">
+                <button type="button" class="primary big" (click)="open()">Open a JSON file&hellip;</button>
+                <button type="button" class="ghost big" (click)="openSample()">Try the sample</button>
+            </div>
+            <p class="muted small">Or drop a file anywhere on this page.</p>
+            @if (!store.canPickFiles) {
+                <p class="note">
+                    This browser cannot write back into an opened file, so Save downloads a copy for you to put in
+                    place of the original. Chrome and Edge save directly.
+                </p>
+            }
+        </div>
+    </main>
+} @else {
+    <div class="workspace">
+        <aside class="side">
+            <app-tree/>
+        </aside>
+        <main class="main">
+            @if (store.selected()) {
+                <app-node-detail/>
+            } @else {
+                <div class="overview">
+                    <h1>{{ store.fileName() }}</h1>
+                    <p class="muted">Pick a node in the tree to edit it.</p>
+
+                    <div class="stats">
+                        <div class="stat"><span class="stat-value">{{ store.entries().length }}</span><span class="stat-label">nodes</span></div>
+                        <div class="stat"><span class="stat-value">{{ store.tree().roots.length }}</span><span class="stat-label">top-level headings</span></div>
+                        <div class="stat"><span class="stat-value">{{ templateIds() || '-' }}</span><span class="stat-label">template id</span></div>
+                    </div>
+
+                    @if (!store.keepsFormatting()) {
+                        <p class="note">
+                            This file is laid out differently from how this editor writes JSON (spacing or line breaks), so the
+                            first save will re-indent it. The data stays the same.
+                        </p>
+                    }
+
+                    <section class="card">
+                        <h2>Problems</h2>
+                        @if (issueList().length === 0) {
+                            <p class="ok">No problems found: ids are unique and every reference points at a node in this file.</p>
+                        } @else {
+                            <ul class="issue-list">
+                                @for (item of issueList(); track $index) {
+                                    <li [class.error]="item.issue.level === 'error'">
+                                        <button type="button" class="link" (click)="store.select(item.entry.uid)">{{ name(item.entry) }}</button>
+                                        <span>{{ item.issue.message }}</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </section>
+
+                    <section class="card">
+                        <h2>Node types</h2>
+                        <div class="types">
+                            @for (type of typeCounts(); track type[0]) {
+                                <span class="type-count"><span class="mono">{{ type[0] }}</span> <b>{{ type[1] }}</b></span>
+                            }
+                        </div>
+                    </section>
+                </div>
+            }
+        </main>
+    </div>
+}
+
+@if (dragging()) {
+    <div class="drop-veil">Drop the file to open it</div>
+}
+
+@if (store.toast(); as toast) {
+    <div class="toast" [class.error]="toast.kind === 'error'" role="status">
+        <span>{{ toast.message }}</span>
+        @if (toast.undoable && store.canUndo()) {
+            <button type="button" class="link" (click)="store.undo()">Undo</button>
+        }
+        <button type="button" class="link close" aria-label="Dismiss" (click)="store.dismissToast()">&#10005;</button>
+    </div>
+}

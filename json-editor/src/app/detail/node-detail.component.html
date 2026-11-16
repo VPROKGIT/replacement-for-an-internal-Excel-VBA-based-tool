@@ -1,0 +1,281 @@
+@if (entry(); as e) {
+    <header class="head">
+        <nav class="crumbs" aria-label="Position in the tree">
+            @for (a of path(); track a.uid) {
+                <button type="button" class="link" (click)="store.select(a.uid)">{{ name(a) }}</button>
+                <span class="sep">/</span>
+            }
+        </nav>
+        <div class="title-row">
+            <h1>{{ name(e) }}</h1>
+            <span class="chip">{{ e.node.nodeType || 'no type' }}</span>
+            <span class="muted mono">#{{ e.node.nodeDefinitionId }}</span>
+            <div class="actions">
+                <button type="button" class="ghost icon" title="Move up" aria-label="Move up"
+                        [disabled]="position().first" (click)="store.moveNode(e.uid, -1)">&uarr;</button>
+                <button type="button" class="ghost icon" title="Move down" aria-label="Move down"
+                        [disabled]="position().last" (click)="store.moveNode(e.uid, 1)">&darr;</button>
+                @if (e.node.nodeType === headingType) {
+                    <button type="button" class="ghost" (click)="store.addNode(e.uid, 'TEXT_MEDIUM')">+ Node</button>
+                    <button type="button" class="ghost" (click)="store.addNode(e.uid, headingType)">+ Heading</button>
+                }
+                <button type="button" class="ghost" title="Copy this node (not its children) right after it"
+                        (click)="store.duplicateNode(e.uid)">Duplicate</button>
+                <button type="button" class="ghost danger"
+                        [title]="childCount() > 0 ? 'Deletes this node and the ' + childCount() + ' node(s) under it' : 'Delete this node'"
+                        (click)="store.deleteNode(e.uid)">Delete</button>
+            </div>
+        </div>
+    </header>
+
+    @if (issues().length > 0) {
+        <ul class="issues">
+            @for (issue of issues(); track $index) {
+                <li [class.error]="issue.level === 'error'">{{ issue.message }}</li>
+            }
+        </ul>
+    }
+
+    <section class="card">
+        <h2>General</h2>
+        <div class="grid">
+            @for (def of general; track def.key) {
+                @if (isPlain(def.key)) {
+                    <label class="field" [class.wide]="def.kind === 'area'">
+                        <span class="field-label">{{ def.label }} <code>{{ def.key }}</code></span>
+                        @switch (def.kind) {
+                            @case ('area') {
+                                <textarea rows="2" [value]="e.node[def.key] ?? ''" (change)="setGeneral(def, $event)"></textarea>
+                            }
+                            @case ('number') {
+                                <input type="number" [value]="e.node[def.key] ?? ''" (change)="setGeneral(def, $event)"/>
+                            }
+                            @default {
+                                <input type="text" [attr.list]="def.list ?? null" [value]="e.node[def.key] ?? ''"
+                                       (change)="setGeneral(def, $event)"/>
+                            }
+                        }
+                        @if (def.hint) {
+                            <span class="hint">{{ def.hint }}</span>
+                        }
+                    </label>
+                }
+            }
+            <label class="field">
+                <span class="field-label">Parent heading <code>parentHeading</code></span>
+                <select (change)="setParent($event)">
+                    <option value="" [selected]="parentUid() === null">(top level)</option>
+                    @for (option of parentOptions(); track option.uid) {
+                        <option [value]="option.uid" [selected]="option.uid === parentUid()">{{ option.label }}</option>
+                    }
+                </select>
+                <span class="hint">Moving a node takes everything under it along</span>
+            </label>
+        </div>
+        <div class="flags">
+            @for (flag of flags; track flag.key) {
+                <label class="check">
+                    <input type="checkbox" [checked]="e.node[flag.key] === true" (change)="setFlag(flag.key, $event)"/>
+                    {{ flag.label }} <code>{{ flag.key }}</code>
+                </label>
+            }
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-head">
+            <h2>UI parameters <span class="count">{{ parameters().length }}</span></h2>
+            <button type="button" class="ghost" (click)="store.addRow(e.uid, 'uiParameters')">+ UI parameter</button>
+        </div>
+        @if (parameters().length === 0) {
+            <p class="empty">This node has no UI parameters.</p>
+        } @else {
+            <div class="params">
+                @for (p of parameters(); track i; let i = $index; let first = $first; let last = $last) {
+                    <div class="param">
+                        <div class="param-cells">
+                            <label class="cell">
+                                <span>uiParameter</span>
+                                <input type="text" list="dl-parameter-names" [value]="p.uiParameter ?? ''"
+                                       (change)="setRowText('uiParameters', i, 'uiParameter', $event)"/>
+                            </label>
+                            <label class="cell">
+                                <span>actionType</span>
+                                <input type="text" list="dl-action-types" [value]="p.actionType ?? ''"
+                                       (change)="setRowText('uiParameters', i, 'actionType', $event)"/>
+                            </label>
+                            <label class="cell">
+                                <span>targetValue</span>
+                                <input type="text" [value]="p.targetValue ?? ''"
+                                       (change)="setRowText('uiParameters', i, 'targetValue', $event)"/>
+                            </label>
+                            <div class="cell">
+                                <span>targetNodeDefId</span>
+                                <div class="target">
+                                    <select aria-label="targetNodeDefId" [class.invalid]="!hasTarget(p.targetNodeDefId)" (change)="setTarget(i, $event)">
+                                        <option value="" [selected]="p.targetNodeDefId === null">(none)</option>
+                                        @if (!hasTarget(p.targetNodeDefId)) {
+                                            <option [value]="p.targetNodeDefId" selected>{{ p.targetNodeDefId }} - not in this file</option>
+                                        }
+                                        @for (t of targets(); track t.id) {
+                                            <option [value]="t.id" [selected]="t.id === p.targetNodeDefId">{{ t.label }}</option>
+                                        }
+                                    </select>
+                                    @if (p.targetNodeDefId !== null && hasTarget(p.targetNodeDefId)) {
+                                        <button type="button" class="ghost icon" title="Open the target node" aria-label="Open the target node"
+                                                (click)="store.selectById(p.targetNodeDefId)">&rarr;</button>
+                                    }
+                                </div>
+                            </div>
+                            <label class="cell">
+                                <span>targetDataNodeField</span>
+                                <input type="text" [value]="p.targetDataNodeField ?? ''"
+                                       (change)="setRowText('uiParameters', i, 'targetDataNodeField', $event)"/>
+                            </label>
+                            <label class="cell">
+                                <span>targetAvailableFieldIndex</span>
+                                <input type="number" [value]="p.targetAvailableFieldIndex ?? ''"
+                                       (change)="setRowNumber('uiParameters', i, 'targetAvailableFieldIndex', $event)"/>
+                            </label>
+                            <label class="cell">
+                                <span>uiLabel</span>
+                                <input type="text" [value]="p.uiLabel ?? ''"
+                                       (change)="setRowText('uiParameters', i, 'uiLabel', $event)"/>
+                            </label>
+                            <label class="cell">
+                                <span>id</span>
+                                <input type="number" [value]="p.id ?? ''"
+                                       (change)="setRowNumber('uiParameters', i, 'id', $event)"/>
+                            </label>
+                            @for (key of extraParameterKeys(); track key) {
+                                <label class="cell">
+                                    <span>{{ key }}</span>
+                                    <input type="text" [value]="loose(p[key])" (change)="setRowLoose('uiParameters', i, key, $event)"/>
+                                </label>
+                            }
+                        </div>
+                        <div class="param-actions">
+                            <button type="button" class="ghost icon" title="Move up" aria-label="Move up" [disabled]="first"
+                                    (click)="store.moveRow(e.uid, 'uiParameters', i, -1)">&uarr;</button>
+                            <button type="button" class="ghost icon" title="Move down" aria-label="Move down" [disabled]="last"
+                                    (click)="store.moveRow(e.uid, 'uiParameters', i, 1)">&darr;</button>
+                            <button type="button" class="ghost icon danger" title="Remove" aria-label="Remove"
+                                    (click)="store.removeRow(e.uid, 'uiParameters', i)">&#10005;</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="card">
+        <div class="card-head">
+            <h2>Available fields <span class="count">{{ fields().length }}</span></h2>
+            <button type="button" class="ghost" (click)="store.addRow(e.uid, 'availableFields')">+ Available field</button>
+        </div>
+        @if (fields().length === 0) {
+            <p class="empty">This node has no available fields.</p>
+        } @else {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th class="tiny" title="ordinal">#</th>
+                        <th>fieldName</th>
+                        <th>uiLabel</th>
+                        <th>uiValue</th>
+                        <th>datasource</th>
+                        <th>uiDisplay</th>
+                        <th class="tiny" title="isRequired">Req.</th>
+                        <th class="narrow">id</th>
+                        @for (key of extraFieldKeys(); track key) {
+                            <th>{{ key }}</th>
+                        }
+                        <th class="w-actions"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        @for (f of fields(); track i; let i = $index; let first = $first; let last = $last) {
+                            <tr>
+                                <td class="tiny muted">{{ f.ordinal }}</td>
+                                <td><input type="text" aria-label="fieldName" [value]="f.fieldName ?? ''"
+                                           (change)="setRowText('availableFields', i, 'fieldName', $event)"/></td>
+                                <td><input type="text" aria-label="uiLabel" [value]="f.uiLabel ?? ''"
+                                           (change)="setRowText('availableFields', i, 'uiLabel', $event)"/></td>
+                                <td><input type="text" aria-label="uiValue" [value]="f.uiValue ?? ''"
+                                           (change)="setRowText('availableFields', i, 'uiValue', $event)"/></td>
+                                <td><input type="text" list="dl-datasources" aria-label="datasource" [value]="f.datasource ?? ''"
+                                           (change)="setRowText('availableFields', i, 'datasource', $event)"/></td>
+                                <td><input type="text" list="dl-displays" aria-label="uiDisplay" [value]="f.uiDisplay ?? ''"
+                                           (change)="setRowText('availableFields', i, 'uiDisplay', $event)"/></td>
+                                <td class="tiny"><input type="checkbox" aria-label="isRequired" [checked]="f.isRequired === true"
+                                                        (change)="setRowFlag('availableFields', i, 'isRequired', $event)"/></td>
+                                <td class="narrow"><input type="number" aria-label="id" [value]="f.id ?? ''"
+                                                          (change)="setRowNumber('availableFields', i, 'id', $event)"/></td>
+                                @for (key of extraFieldKeys(); track key) {
+                                    <td><input type="text" [attr.aria-label]="key" [value]="loose(f[key])"
+                                               (change)="setRowLoose('availableFields', i, key, $event)"/></td>
+                                }
+                                <td class="row-actions">
+                                    <button type="button" class="ghost icon" title="Move up" aria-label="Move up" [disabled]="first"
+                                            (click)="store.moveRow(e.uid, 'availableFields', i, -1)">&uarr;</button>
+                                    <button type="button" class="ghost icon" title="Move down" aria-label="Move down" [disabled]="last"
+                                            (click)="store.moveRow(e.uid, 'availableFields', i, 1)">&darr;</button>
+                                    <button type="button" class="ghost icon danger" title="Remove" aria-label="Remove"
+                                            (click)="store.removeRow(e.uid, 'availableFields', i)">&#10005;</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @if (usedBy().length > 0) {
+        <section class="card">
+            <h2>Used by <span class="count">{{ usedBy().length }}</span></h2>
+            <p class="hint">Nodes with a UI parameter that targets this one.</p>
+            <div class="links">
+                @for (other of usedBy(); track other.uid) {
+                    <button type="button" class="link" (click)="store.select(other.uid)">{{ name(other) }}</button>
+                }
+            </div>
+        </section>
+    }
+
+    @if (otherKeys().length > 0) {
+        <section class="card">
+            <h2>Other properties</h2>
+            <p class="hint">Shown as JSON. They are kept in the file exactly as they are unless you change them here.</p>
+            <div class="grid">
+                @for (key of otherKeys(); track key) {
+                    <label class="field wide">
+                        <span class="field-label"><code>{{ key }}</code></span>
+                        <textarea class="mono" rows="2" spellcheck="false" [value]="json(e.node[key])"
+                                  [class.invalid]="jsonErrors()[key]" (change)="setJson(key, $event)"></textarea>
+                        @if (jsonErrors()[key]; as error) {
+                            <span class="hint error">Not saved - {{ error }}</span>
+                        }
+                    </label>
+                }
+            </div>
+        </section>
+    }
+
+    <datalist id="dl-node-types">
+        @for (v of nodeTypes(); track v) { <option [value]="v"></option> }
+    </datalist>
+    <datalist id="dl-datasources">
+        @for (v of datasources(); track v) { <option [value]="v"></option> }
+    </datalist>
+    <datalist id="dl-parameter-names">
+        @for (v of parameterNames(); track v) { <option [value]="v"></option> }
+    </datalist>
+    <datalist id="dl-action-types">
+        @for (v of actionTypes(); track v) { <option [value]="v"></option> }
+    </datalist>
+    <datalist id="dl-displays">
+        @for (v of displays(); track v) { <option [value]="v"></option> }
+    </datalist>
+}

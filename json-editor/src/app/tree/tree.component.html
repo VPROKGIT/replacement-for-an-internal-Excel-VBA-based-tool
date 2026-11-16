@@ -1,0 +1,66 @@
+<div class="tree-tools">
+    <input type="search" class="search" placeholder="Search identifier, label, type or id"
+           aria-label="Search nodes" [value]="filter()" (input)="filter.set($any($event.target).value)"/>
+    <div class="tree-actions">
+        @if (visible()) {
+            <span class="muted">{{ matchCount() }} shown</span>
+        } @else {
+            <button type="button" class="link" (click)="store.setAllCollapsed(false)">Expand all</button>
+            <button type="button" class="link" (click)="store.setAllCollapsed(true)">Collapse all</button>
+        }
+    </div>
+</div>
+
+<div class="tree" role="tree">
+    <ng-container *ngTemplateOutlet="branch; context: { $implicit: store.tree().roots, depth: 0 }"/>
+
+    @if (store.tree().orphans.length > 0) {
+        <p class="orphans-title" title="Their parentHeading does not lead to a top-level heading">Not attached to the tree</p>
+        <ng-container *ngTemplateOutlet="branch; context: { $implicit: store.tree().orphans, depth: 0 }"/>
+    }
+
+    @if (visible() && matchCount() === 0) {
+        <p class="empty">Nothing matches "{{ filter() }}".</p>
+    }
+</div>
+
+<div class="tree-footer">
+    <button type="button" class="ghost" (click)="store.addNode(null, headingType)">+ Top-level heading</button>
+</div>
+
+<ng-template #branch let-nodes let-depth="depth">
+    @for (n of nodes; track n.entry.uid) {
+        @if (shown(n)) {
+            <div class="row" role="treeitem" tabindex="0"
+                 [class.selected]="n.entry.uid === store.selectedUid()"
+                 [class.heading]="n.entry.node.nodeType === headingType"
+                 [style.padding-left.px]="6 + depth * 16"
+                 [attr.aria-selected]="n.entry.uid === store.selectedUid()"
+                 [title]="hint(n)"
+                 (click)="store.select(n.entry.uid)" (keydown.enter)="store.select(n.entry.uid)">
+                @if (n.children.length > 0) {
+                    <button type="button" class="chevron" [class.open]="open(n)"
+                            [attr.aria-label]="open(n) ? 'Collapse' : 'Expand'" (click)="toggle($event, n)">&#9656;</button>
+                } @else {
+                    <span class="chevron-space"></span>
+                }
+                <span class="label">{{ label(n) }}</span>
+                @if (n.entry.node.isRequired) {
+                    <span class="mark required" title="Required">*</span>
+                }
+                @if (n.entry.node.isRepeating) {
+                    <span class="mark" title="Repeating">&#8635;</span>
+                }
+                @if (issueLevel(n); as level) {
+                    <span class="dot" [class.error]="level === 'error'" [title]="level === 'error' ? 'Has errors' : 'Has warnings'"></span>
+                }
+                @if (n.entry.node.nodeType !== headingType) {
+                    <span class="type" [style.--hue]="hue(n.entry.node.nodeType)">{{ n.entry.node.nodeType || '?' }}</span>
+                }
+            </div>
+            @if (n.children.length > 0 && open(n)) {
+                <ng-container *ngTemplateOutlet="branch; context: { $implicit: n.children, depth: depth + 1 }"/>
+            }
+        }
+    }
+</ng-template>

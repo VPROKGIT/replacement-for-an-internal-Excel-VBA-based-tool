@@ -1,0 +1,323 @@
+:host {
+    display: block;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 1.25rem 1.5rem 3rem;
+}
+
+.head {
+    margin-bottom: 1rem;
+}
+
+.crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 1.2rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.sep {
+    color: var(--line-strong);
+}
+
+.title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.2rem;
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+}
+
+.chip {
+    padding: 0.12rem 0.5rem;
+    border-radius: 999px;
+    background: var(--accent-bg);
+    color: var(--accent-ink);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-left: auto;
+}
+
+.issues {
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--warning-line);
+    border-radius: 8px;
+    background: var(--warning-bg);
+    font-size: 0.875rem;
+}
+
+.issues li {
+    padding: 0.1rem 0 0.1rem 1.1rem;
+    position: relative;
+}
+
+.issues li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--warning);
+}
+
+.issues li.error::before {
+    background: var(--danger);
+}
+
+.card {
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.6rem;
+}
+
+.card-head h2 {
+    margin: 0;
+}
+
+h2 {
+    margin: 0 0 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.count {
+    margin-left: 0.3rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: var(--hover);
+    color: var(--ink);
+    font-size: 0.72rem;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.75rem 1rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.field.wide {
+    grid-column: 1 / -1;
+}
+
+.field-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+code {
+    margin-left: 0.25rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.hint {
+    font-size: 0.76rem;
+    color: var(--muted);
+}
+
+.hint.error {
+    color: var(--danger);
+}
+
+.flags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    margin-top: 0.9rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--line);
+}
+
+.check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.empty {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+.table-wrap {
+    overflow-x: auto;
+    margin: 0 -0.3rem;
+}
+
+/* Fixed layout: the columns keep the widths given here whatever the values are, and the table
+   scrolls sideways inside its card when the pane is narrower than that. */
+table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+th.w-actions {
+    width: 6.6rem;
+}
+
+/* A UI parameter has too many properties for one table row: each is a block of labelled cells
+   that wraps onto as many lines as the pane's width needs. */
+.params {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.param {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.6rem 0.7rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+}
+
+.param-cells {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 0.5rem 0.7rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.cell > span {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cell input,
+.cell select {
+    width: 100%;
+    min-width: 0;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.84rem;
+}
+
+.param-actions {
+    display: flex;
+    flex: none;
+    gap: 0.2rem;
+    padding-top: 1.05rem;
+}
+
+th {
+    padding: 0.2rem 0.3rem 0.35rem;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+td {
+    padding: 0.18rem 0.3rem;
+    vertical-align: middle;
+}
+
+td input[type="text"],
+td input[type="number"],
+td select {
+    width: 100%;
+    min-width: 0;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.84rem;
+}
+
+th.narrow,
+td.narrow {
+    width: 5.6rem;
+}
+
+th.tiny,
+td.tiny {
+    width: 2.6rem;
+    text-align: center;
+}
+
+.target {
+    display: flex;
+    gap: 0.2rem;
+}
+
+.target select {
+    flex: 1;
+}
+
+.row-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    margin-top: 0.4rem;
+}
+
+textarea.mono {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+}

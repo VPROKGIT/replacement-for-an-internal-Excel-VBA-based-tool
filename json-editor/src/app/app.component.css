@@ -1,0 +1,355 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* --- toolbar --------------------------------------------------------------------------------- */
+
+.bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: none;
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+}
+
+.brand {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+
+.file {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    min-width: 0;
+    padding-left: 1rem;
+    border-left: 1px solid var(--line);
+}
+
+.file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-size: 0.86rem;
+}
+
+.unsaved,
+.saved {
+    flex: none;
+    font-size: 0.78rem;
+}
+
+.unsaved {
+    color: var(--warning);
+    font-weight: 600;
+}
+
+.saved {
+    color: var(--muted);
+}
+
+.bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+}
+
+.pill {
+    margin-right: 0.4rem;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ok);
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pill.warn {
+    color: var(--warning);
+    border-color: var(--warning-line);
+    background: var(--warning-bg);
+}
+
+.pill.bad {
+    color: var(--danger);
+    border-color: var(--danger);
+    background: var(--danger-bg);
+}
+
+/* --- workspace ------------------------------------------------------------------------------- */
+
+.workspace {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+}
+
+.side {
+    min-height: 0;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+}
+
+.main {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+@media (max-width: 760px) {
+    .workspace {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 40vh minmax(0, 1fr);
+    }
+
+    .side {
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .bar {
+        flex-wrap: wrap;
+    }
+}
+
+/* --- overview (nothing selected) --------------------------------------------------------------- */
+
+.overview {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1.5rem 1.5rem 3rem;
+}
+
+.overview h1 {
+    margin: 0;
+    font-size: 1.4rem;
+    overflow-wrap: anywhere;
+}
+
+.overview > .muted {
+    margin: 0.3rem 0 1.2rem;
+}
+
+.stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    min-width: 9rem;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.card {
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+h2 {
+    margin: 0 0 0.6rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.ok {
+    margin: 0;
+    color: var(--ok);
+    font-size: 0.9rem;
+}
+
+.note {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--warning-line);
+    border-radius: 8px;
+    background: var(--warning-bg);
+    font-size: 0.86rem;
+}
+
+.issue-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.88rem;
+}
+
+.issue-list li {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.3rem 0 0.3rem 1.1rem;
+    position: relative;
+    border-top: 1px solid var(--line);
+}
+
+.issue-list li:first-child {
+    border-top: none;
+}
+
+.issue-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.75rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--warning);
+}
+
+.issue-list li.error::before {
+    background: var(--danger);
+}
+
+.issue-list .link {
+    flex: none;
+    font-weight: 600;
+}
+
+.types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.type-count {
+    display: inline-flex;
+    gap: 0.45rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    background: var(--hover);
+    font-size: 0.8rem;
+}
+
+/* --- welcome --------------------------------------------------------------------------------- */
+
+.welcome {
+    display: grid;
+    place-items: center;
+    flex: 1;
+    padding: 1.5rem;
+}
+
+.welcome-card {
+    max-width: 34rem;
+    padding: 2.2rem 2.4rem;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    text-align: center;
+}
+
+.welcome-card h1 {
+    margin: 0 0 0.6rem;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+}
+
+.welcome-card p {
+    margin: 0 0 1.2rem;
+    line-height: 1.5;
+}
+
+.welcome-card .note {
+    margin: 1rem 0 0;
+    text-align: left;
+}
+
+.welcome-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+}
+
+.big {
+    padding: 0.6rem 1.2rem !important;
+    font-size: 0.95rem !important;
+}
+
+.small {
+    font-size: 0.82rem;
+    margin-bottom: 0 !important;
+}
+
+.drop-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    background: rgba(58, 86, 212, 0.12);
+    border: 3px dashed var(--accent);
+    color: var(--accent-ink);
+    font-size: 1.3rem;
+    font-weight: 650;
+    pointer-events: none;
+}
+
+/* --- messages -------------------------------------------------------------------------------- */
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.25rem;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    max-width: min(90vw, 44rem);
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    background: var(--ink);
+    color: #fff;
+    font-size: 0.88rem;
+    box-shadow: 0 6px 24px rgba(20, 28, 50, 0.25);
+    transform: translateX(-50%);
+}
+
+.toast.error {
+    background: var(--danger);
+}
+
+.toast .link {
+    color: #b9c6ff;
+    font-weight: 700;
+}
+
+.toast.error .link,
+.toast .close {
+    color: #fff;
+    opacity: 0.85;
+}
