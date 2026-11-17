@@ -1,0 +1,70 @@
+# Tests the template editor (json-editor/) and publishes it to GitHub Pages.
+#
+# One-time setup in the repository: Settings > Pages > Source: "GitHub Actions".
+# The site is then at https://<user>.github.io/<repository>/ and is replaced on every push to
+# main that changes json-editor/. Pull requests only run the tests and the build.
+
+name: json-editor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'json-editor/**'
+      - '.github/workflows/json-editor-pages.yml'
+  pull_request:
+    paths:
+      - 'json-editor/**'
+      - '.github/workflows/json-editor-pages.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: json-editor-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: json-editor
+    steps:
+      - uses: actions/checkout@v4
+
+      # Angular 17 supports Node 18 and 20.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: json-editor/package-lock.json
+
+      - run: npm ci
+
+      - name: Tests
+        run: npx ng test --watch=false --browsers=ChromeHeadlessCI
+        env:
+          NG_CLI_ANALYTICS: 'false'
+
+      # The site lives under /<repository>/, so every link in the page must be relative to that.
+      - name: Build
+        run: npx ng build --base-href "/${{ github.event.repository.name }}/"
+        env:
+          NG_CLI_ANALYTICS: 'false'
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: json-editor/dist/json-editor/browser
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
